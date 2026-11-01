@@ -303,6 +303,12 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
         m.angleAt1 = md["angleAt1_rad"].num(1.1);
         m.turretGear = md["gearRatio"].num(1.0);
         m.gravityTorque = md["gravityTorque_Nm"].num(0.0);
+        for (auto& pp : md["ballPath_m"].items()) m.path.push_back({pp[0].num(), pp[1].num(), pp[2].num()});
+        m.rollerZ = md["rollerHeight_m"].num(-1);
+        m.mouthHeight = md["mouthHeight_m"].num(0.13);
+        m.beltGripS = md["beltGrip_s"].num(0.03);
+        m.compression = md["compression_m"].num(0.006);
+        m.spinSense = md["spinSense"].num(1.0);
         mechs.push_back(m);
     }
     // Sensors

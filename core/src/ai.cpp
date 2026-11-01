@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 #include "gameplan/world.hpp"
 
@@ -120,19 +122,23 @@ bool AIController::solveShot(World& w, int self, const Vec3& target, double& hoo
     double a0 = hood ? hood->angleAt0 : 0.9, a1 = hood ? hood->angleAt1 : 0.9;
     const GearedJoint& j = r.joints[fly->joint];
     double vmax = r.elec.motors[j.motor].spec.wFree() / j.ratio * fly->flyRadius * fly->launchEff * 0.85;
+    // the drivers know their shooter: aim with the real flight model (drag + Magnus from the backspin
+    // this shooter gives a POLLEN), searching the hood range for the slowest shot that drops in
+    const SeasonDef& sd = w.season();
     double bestV = 1e9, bestA = a0;
-    for (int k = 0; k <= 24; ++k) {
-        double th = a0 + (a1 - a0) * k / 24.0;
-        double den = 2 * std::cos(th) * std::cos(th) * (dx * std::tan(th) - dz);
-        if (den <= 1e-6) continue;
-        double v = std::sqrt(kG * dx * dx / den);
-        double tf = dx / (v * std::cos(th));
-        double vz = v * std::sin(th) - kG * tf;
+    for (int k = 0; k <= 8; ++k) {
+        double th = a0 + (a1 - a0) * k / 8.0;
+        double lo = 1.0, hi = vmax / 0.85 * 1.1, vz = 0;
+        if (predictBallHeight(sd.pollenPhys, sd.pollenMass, sd.pollenD / 2, hi, th, fly->spinSense, dx, vz) < dz) continue;
+        for (int it = 0; it < 14; ++it) {
+            double mid = 0.5 * (lo + hi);
+            if (predictBallHeight(sd.pollenPhys, sd.pollenMass, sd.pollenD / 2, mid, th, fly->spinSense, dx, vz) < dz) lo = mid; else hi = mid;
+        }
+        predictBallHeight(sd.pollenPhys, sd.pollenMass, sd.pollenD / 2, hi, th, fly->spinSense, dx, vz);
         if (vz > -0.8) continue;  // must descend into the opening
-        if (v < bestV) { bestV = v; bestA = th; }
+        if (hi < bestV) { bestV = hi; bestA = th; }
     }
     if (bestV > vmax) return false;
-    bestV *= 1.0 + 0.035 * dx;  // drag allowance (AI's own model of its launcher)
     hoodFrac = (a1 - a0) > 1e-6 ? (bestA - a0) / (a1 - a0) : 0.5;
     flySurface = bestV / fly->launchEff;
     return true;
@@ -273,7 +279,8 @@ void AIController::drive(World& w, int self, Vec2 goal, double goalHeading, doub
 void AIController::setMechanisms(World& w, int self, double t) {
     Robot& r = *w.robots()[self].robot;
     for (auto& m : r.mechs) {
-        if (m.type == MechType::Intake && m.joint >= 0) r.ports[r.joints[m.joint].motor].power = wantIntake_ ? 1.0 : 0.0;
+        // the intake belts also feed the shooter: run them while collecting or firing
+        if (m.type == MechType::Intake && m.joint >= 0) r.ports[r.joints[m.joint].motor].power = (wantIntake_ || wantShoot_) ? 1.0 : 0.0;
         if (m.type == MechType::Flywheel && m.joint >= 0) {
             int mi = r.joints[m.joint].motor;
             double cur = r.joints[m.joint].w * m.flyRadius;

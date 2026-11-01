@@ -35,6 +35,16 @@ struct FlowerDef {
 };
 struct LegDef { Vec3 base, apex; };
 
+// Physical model of one SCORING ELEMENT type (hollow perforated ball), see SIMULATION_PHYSICS.md.
+struct BallPhys {
+    double hertzK = 1.2e5;          // N/m^1.5, F = k * compression^1.5
+    double eFloor = 0.55, eBall = 0.5;
+    double muBall = 0.35, muFloor = 0.55, muRoller = 0.9, muWall = 0.3;
+    double rollRes = 0.02, cd = 0.6, clPerS = 0.8, clMax = 0.35, spinDecay = 0.25;
+    double inertiaK = 0.62;         // I = k m r^2 (thin shell 2/3, solid 2/5)
+    double radiusSigma = 0.0004;
+};
+
 struct SeasonDef {
     std::string id, name, packageVersion, rulesEngineVersion, manualTU, manualDate, contentHash, path;
     Json raw;
@@ -60,6 +70,7 @@ struct SeasonDef {
     // elements
     double pollenD = 0.0711, nectarD = 0.0914, pollenMass = 0.024, nectarMass = 0.040, restitution = 0.45, rollingRes = 0.02;
     double pollenMassSigma = 0.004, nectarMassSigma = 0.006;
+    BallPhys pollenPhys, nectarPhys;
     std::vector<Vec3> gardenPollen[2];
     std::vector<Vec3> cellNectar[2];  // by alliance (initially up cell)
     int allianceAreaNectar = 5;

@@ -7,7 +7,7 @@ the core's GP_THROW aborts with a message instead.
 """
 import os, subprocess, sys
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srcs = ["json", "math", "uncertainty", "electrical", "season", "robot", "world", "rules", "sensors", "ai"]
+srcs = ["json", "math", "uncertainty", "electrical", "season", "robot", "world", "balls", "rules", "sensors", "ai"]
 out = os.path.join(root, "build-web")
 os.makedirs(out, exist_ok=True)
 cxx = os.environ.get("CXX_WASM", "clang++-18" if subprocess.call(["which", "clang++-18"], stdout=subprocess.DEVNULL) == 0 else "clang++")

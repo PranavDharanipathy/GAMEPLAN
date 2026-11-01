@@ -472,20 +472,53 @@
   "scoringElements": {
     "POLLEN": {
       "diameter_m": 0.0711,
-      "mass_kg": 0.024,
+      "mass_kg": 0.0212,
       "massSigma_kg": 0.004,
       "count": 40,
       "color": "yellow",
       "part": "am-5851_yellow",
       "massProvenance": {
-        "kind": "estimate",
-        "confidence": "low",
-        "basis": "2.8 in Gopher ResisDent polyethylene ball; no official mass published"
+        "kind": "derived",
+        "confidence": "medium",
+        "basis": "CAD material volume 22.30 cm^3 x polyethylene 0.95 g/cm^3 = 21.2 g (material assumed; weigh real balls to confirm)"
+      },
+      "physics": {
+        "hertzK_N_per_m1p5": 120000.0,
+        "restitutionFloor": 0.55,
+        "restitutionBall": 0.5,
+        "muBall": 0.35,
+        "muFloor": 0.55,
+        "muRoller": 0.9,
+        "muWall": 0.3,
+        "rollingResistance": 0.02,
+        "dragCd": 0.6,
+        "magnusClPerSpinRatio": 0.8,
+        "magnusClMax": 0.35,
+        "spinDecayPerS": 0.25,
+        "inertiaFactor": 0.634,
+        "radiusSigma_m": 0.0004,
+        "provenance": {
+          "kind": "estimate",
+          "confidence": "low",
+          "basis": "Contact stiffness chosen so a hollow perforated polyethylene ball deflects ~3 mm under a 20 N squeeze and ~8 mm (POLLEN) on a 5 m/s floor impact; friction from polyethylene on EVA foam / polyurethane rollers; drag and Magnus lift typical of perforated (wiffle-type) balls. Replace with measurements (drop/squeeze/spin tests) when available."
+        }
+      },
+      "geometry": {
+        "outerDiameter_mm": 71.12,
+        "wallThickness_mm": 1.78,
+        "holes": 26,
+        "holeDiameter_mm": 11.2,
+        "materialVolume_mm3": 22299,
+        "provenance": {
+          "kind": "official",
+          "confidence": "high",
+          "source": "official field STEP (am-5851 Pollen / am-5852 Nectar), B-rep mass properties via OpenCASCADE (tools/cad_to_glb.py); hole count from mesh Euler characteristic (genus 25 -> 26 holes); hole diameter from surface area balance"
+        }
       }
     },
     "NECTAR": {
       "diameter_m": 0.0914,
-      "mass_kg": 0.04,
+      "mass_kg": 0.041,
       "massSigma_kg": 0.006,
       "countPerAlliance": 8,
       "colors": [
@@ -494,9 +527,42 @@
       ],
       "part": "am-5852",
       "massProvenance": {
-        "kind": "estimate",
-        "confidence": "low",
-        "basis": "3.6 in ResisDent ball; tip calibration implies ~1.67x POLLEN tip weight"
+        "kind": "derived",
+        "confidence": "medium",
+        "basis": "CAD material volume 43.13 cm^3 x polyethylene 0.95 g/cm^3 = 41.0 g (material assumed)"
+      },
+      "physics": {
+        "hertzK_N_per_m1p5": 140000.0,
+        "restitutionFloor": 0.5,
+        "restitutionBall": 0.5,
+        "muBall": 0.35,
+        "muFloor": 0.55,
+        "muRoller": 0.9,
+        "muWall": 0.3,
+        "rollingResistance": 0.02,
+        "dragCd": 0.6,
+        "magnusClPerSpinRatio": 0.8,
+        "magnusClMax": 0.35,
+        "spinDecayPerS": 0.25,
+        "inertiaFactor": 0.636,
+        "radiusSigma_m": 0.0005,
+        "provenance": {
+          "kind": "estimate",
+          "confidence": "low",
+          "basis": "Contact stiffness chosen so a hollow perforated polyethylene ball deflects ~3 mm under a 20 N squeeze and ~8 mm (POLLEN) on a 5 m/s floor impact; friction from polyethylene on EVA foam / polyurethane rollers; drag and Magnus lift typical of perforated (wiffle-type) balls. Replace with measurements (drop/squeeze/spin tests) when available."
+        }
+      },
+      "geometry": {
+        "outerDiameter_mm": 91.95,
+        "wallThickness_mm": 2.16,
+        "holes": 26,
+        "holeDiameter_mm": 11.2,
+        "materialVolume_mm3": 43128,
+        "provenance": {
+          "kind": "official",
+          "confidence": "high",
+          "source": "official field STEP (am-5851 Pollen / am-5852 Nectar), B-rep mass properties via OpenCASCADE (tools/cad_to_glb.py); hole count from mesh Euler characteristic (genus 25 -> 26 holes); hole diameter from surface area balance"
+        }
       }
     },
     "restitution": 0.45,

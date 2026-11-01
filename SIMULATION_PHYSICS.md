@@ -61,3 +61,22 @@ the team's library exactly like `AprilTagProcessorImpl`: tags in a library clust
 that cluster (`percentClusterFound = round(seen/members·100)`), all others become single detections,
 with metadata and `ftcPose` only when the library knows the tag. `pitch`/`roll` are 0 and `rawPose`
 /`robotPose` are `null`.
+
+## Scoring elements (balls.cpp)
+Geometry is official CAD: POLLEN Ø71.1 mm and NECTAR Ø92.0 mm are hollow polyethylene shells (1.78 /
+2.16 mm wall) with 26 Ø11 mm holes; mass = CAD material volume × 0.95 g/cm³ (material assumed);
+thin-shell inertia I = 0.635 m R². Each ball is a rigid body (position, velocity, orientation,
+spin). Constants with provenance are in `scoringElements.*.physics`.
+
+| Effect | Model |
+|---|---|
+| Contacts (floor, walls, HIVE legs, FLOWERS, robot chassis, intake roller, ball-ball) | Hertz spring F = k·d^1.5, damping from restitution, Coulomb friction at the contact point (couples slide ↔ spin); 4 substeps per 1 ms step |
+| Squish | contact compression d (a few mm on impacts, ~0.2 mm resting), exported per ball for rendering |
+| Flight | gravity, drag (Cd 0.6, perforated ball), Magnus lift C_L = min(0.35, 0.8·rω/v), spin decay |
+| Intake | compliant roller (friction 0.9) drags the ball through the mouth and spins it; no room → the ball stays at the roller |
+| Inside the robot | 1-D bodies on the robot's ball path (mouth → shooter): belts are friction-limited (3 g) velocity sources, gravity along the path, robot acceleration (balls slosh on hard stops/hits), Hertz contact between neighbours, end stop at the gate; reversing spits balls out |
+| Launch | exit speed = efficiency × wheel surface speed × grip(compression of *this* ball) × momentum exchange with the wheel; backspin ≈ v/r (rolling on the hood); flywheel loses the ball's translational + rotational energy |
+
+Estimates (contact stiffness, friction, Cd, C_L, belt grip) are flagged in the season file; replace
+them with drop / squeeze / spin measurements of real elements.
+

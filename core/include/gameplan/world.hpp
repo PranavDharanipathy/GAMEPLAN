@@ -35,6 +35,14 @@ struct Element {
     bool launched = false;
     Vec2 launchFrom;        // where and in which direction it was last launched (G405 intent)
     double launchYaw = 0;
+    // rigid-body + contact state (balls.cpp)
+    Vec3 w;                         // angular velocity (rad/s, world)
+    double q[4] = {1, 0, 0, 0};     // orientation quaternion (w, x, y, z): the holes rotate with it
+    double squish = 0;              // largest contact compression this step (m), for rendering
+    Vec3 squishN{0, 0, 1};          // direction of that compression (from contact towards centre)
+    double pathS = 0, pathV = 0;    // position / speed along the holder's internal ball path
+    int passRobot = -1;             // robot whose frame the ball is leaving (shooter / mouth) ...
+    double passUntil = -1;          // ... until this time
     double reentryAt = -1;  // field staff / human re-entry time for out-of-field elements
     bool enteredFlowerEarly = false;
 };
@@ -108,6 +116,8 @@ struct RobotSlot {
     int pendingPortReset = -1;        // hub index whose ports reset after recovery
 };
 
+double predictBallHeight(const BallPhys& b, double m, double r, double v, double th, double spinSense, double dx, double& vzAt);
+
 class World {
 public:
     World(const SeasonDef& season, const Components& comps, const WorldConfig& cfg);
@@ -151,6 +161,13 @@ public:
     bool robotInLoadingZone(int r) const;
     double robotContactTime(int a, int b) const;
     bool robotsInContact(int a, int b) const;
+    // Ball physics helpers (balls.cpp)
+    const BallPhys& ballPhys(const Element& e) const;
+    double ballInertia(const Element& e) const;
+    std::vector<Vec3> ballPath(int robot) const;              // body frame, mouth -> shooter
+    double ballPathLength(int robot) const;
+    Vec3 ballPathPoint(int robot, double s, Vec3* tangent = nullptr) const;
+    Vec3 cellSlot(int hive, int cell, int k) const;           // resting place of the k-th element in a cell
 
     // State hashing / checkpoints (host-side state only; see DEEP_ANALYSIS.md on runtime state)
     Json snapshot() const;
@@ -166,13 +183,12 @@ public:
     std::vector<LaunchRecord> launches;
 
 private:
-    void stepElements(double dt);
     void collideRobots(double dt);
-    void interactRobotsElements(double dt);
+    void stepBalls(double dt);                       // balls.cpp
+    void launchElement(int r, int mech, int element);
     void stepHives(double dt);
     void stepHumans(double dt);
     void stepFaults(double dt);
-    void launchFrom(int r, int mech);
     void releaseFromCell(int hive, int cell);
     void ejectElement(Element& e);
     Vec3 cellOpeningCenter(int hive, int cell) const;
@@ -194,6 +210,7 @@ private:
     std::vector<FaultEvent> faults_;
     std::vector<std::vector<double>> contactTime_;
     std::vector<double> intakeLoadUntil_, intakeLoad_;
+    std::vector<Vec2> prevRobotVel_;
     std::vector<int> prevLegContact_;
 };
 

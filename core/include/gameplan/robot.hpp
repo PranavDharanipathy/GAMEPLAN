@@ -80,9 +80,17 @@ struct Mechanism {
     // intake
     double rollerRadius = 0.03, captureSpeed = 1.2, width = 0.30, reach = 0.06;
     int capacity = 3;
+    // Internal ball path (body frame, metres), intake mouth -> shooter. Empty = generated from the
+    // chassis size, intake and launcher geometry (Robot::ballPath()).
+    std::vector<Vec3> path;
+    double rollerZ = -1;             // intake roller axis height (default: just above a POLLEN centre)
+    double mouthHeight = 0.13;       // clear height of the intake mouth
+    double beltGripS = 0.03;         // time constant of belts/rollers bringing a held ball to speed
     // flywheel / launcher
     double flyRadius = 0.048, launchEff = 0.45, launchHeight = 0.30, launchFwd = 0.0, contactEnergyLoss = 0.55;
     double minLaunchFrac = 0.2;
+    double compression = 0.006;      // ball squeeze between wheel and hood (m): more grip, more speed
+    double spinSense = 1.0;          // +1: wheel under the ball's path -> backspin (lift); -1: topspin
     // gate (feeder)
     double openAbove = 0.5;          // servo target position fraction above which gate is open
     double feedInterval = 0.25;

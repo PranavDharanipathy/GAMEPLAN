@@ -18,6 +18,7 @@ Statuses: Not started · Investigating · Designed · Implementing · Implemente
 | Field contacts, elements, HIVE, FLOWER | Validated | `world.cpp` | matches, tag tests | element–robot contact is kinematic push |
 | Uncertainty engine (4 levels) | Tested | `uncertainty.cpp` | `uncertainty_levels_semantics` | correlations only where coded |
 | Sensors + corruption (no failures) | Implemented | `sensors.cpp` | used in runtime matches | no dedicated unit tests per sensor |
+| Ball physics (spin, compliant contacts, physical intake path, ball-dependent shots) | Validated | `balls.cpp`, `test_balls.cpp` | 5 unit tests (bounce/squish, slide→roll, glancing collision momentum+spin, intake holds inside footprint + reverse spits out, shot vs ball size and spin); determinism re-verified | contact constants are estimates; cells hold balls in packed slots (not simulated inside) |
 | Virtual AprilTag perception | Validated | `sensors.cpp`, `world.cpp` (`clusterFrame`), `SimAprilTagProcessor` | default library -> `AprilTagClusterDetection`s (up to 100 %); custom library -> singles with pose; cluster geometry unit test vs SDK metadata | no robotPose/rawPose; ftcPose pitch/roll 0 |
 | ESD / faults / brownout | Tested | `world.cpp` | `esd_never_triggers_without_charge…` | magnitudes estimated |
 | FTC runtime (hybrid real SDK) | Validated | `runtime/` | integration tests; team OpMode match | see FTC_SDK.md gaps |

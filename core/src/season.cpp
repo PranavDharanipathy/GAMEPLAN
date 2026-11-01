@@ -83,6 +83,18 @@ SeasonDef SeasonDef::fromText(const std::string& text, const std::string& path) 
     s.flowerZMin = fg["scoringVolume"]["zMin_m"].num(); s.flowerZMax = fg["scoringVolume"]["zMax_m"].num();
     s.flowerOuterR = fg["outerRadius_m"].num(0.075);
     s.flowerRetrievalH = fg["retrievalOpeningHeight_m"].num(0.09);
+    {
+        auto ld = [&](const Json& pj, BallPhys& b) {
+            b.hertzK = pj["hertzK_N_per_m1p5"].num(b.hertzK); b.eFloor = pj["restitutionFloor"].num(b.eFloor); b.eBall = pj["restitutionBall"].num(b.eBall);
+            b.muBall = pj["muBall"].num(b.muBall); b.muFloor = pj["muFloor"].num(b.muFloor); b.muRoller = pj["muRoller"].num(b.muRoller);
+            b.muWall = pj["muWall"].num(b.muWall); b.rollRes = pj["rollingResistance"].num(b.rollRes); b.cd = pj["dragCd"].num(b.cd);
+            b.clPerS = pj["magnusClPerSpinRatio"].num(b.clPerS); b.clMax = pj["magnusClMax"].num(b.clMax); b.spinDecay = pj["spinDecayPerS"].num(b.spinDecay);
+            b.inertiaK = pj["inertiaFactor"].num(b.inertiaK); b.radiusSigma = pj["radiusSigma_m"].num(b.radiusSigma);
+        };
+        const Json& se = s.raw["scoringElements"];
+        ld(se["POLLEN"]["physics"], s.pollenPhys);
+        ld(se["NECTAR"]["physics"], s.nectarPhys);
+    }
     s.tagSize = f["aprilTags"]["size_m"].num(0.08255);
     for (auto& m : f["aprilTags"]["clusterMemberPositions_in"].items()) s.clusterMembers.push_back(v3(m) * 0.0254);
     const Json& tip = f["hiveTip"];

@@ -10,7 +10,6 @@
 namespace gp {
 
 namespace {
-constexpr double kAirRho = 1.2, kBallCd = 0.47;
 constexpr double kWallK = 4.0e4, kWallC = 600.0;   // perimeter compliance (barrier slack emerges from k)
 constexpr double kRobotK = 3.0e4, kRobotC = 500.0;
 }  // namespace
@@ -102,7 +101,15 @@ void World::stageField() {
         double nominal = t == ElemType::Pollen ? season_.pollenMass : season_.nectarMass;
         double sigma = t == ElemType::Pollen ? season_.pollenMassSigma : season_.nectarMassSigma;
         ULevel l = cfg_.uncertainty.level("elements");
-        e.mass = (l == ULevel::Realistic || l == ULevel::Extreme) ? std::max(0.5 * nominal, r.normal(nominal, sigma)) : nominal;
+        bool varied = l == ULevel::Realistic || l == ULevel::Extreme;
+        e.mass = varied ? std::max(0.5 * nominal, r.normal(nominal, sigma)) : nominal;
+        // Manual 9.8: elements are not perfectly spherical and vary in size
+        const BallPhys& bp = t == ElemType::Pollen ? season_.pollenPhys : season_.nectarPhys;
+        if (varied) e.radius += clampd(r.normal(0, bp.radiusSigma), -3 * bp.radiusSigma, 3 * bp.radiusSigma);
+        // arbitrary resting orientation (the hole pattern is not aligned between balls)
+        double u1 = r.uniform(), u2 = r.uniform(), u3 = r.uniform();
+        e.q[0] = std::sqrt(1 - u1) * std::sin(2 * kPi * u2); e.q[1] = std::sqrt(1 - u1) * std::cos(2 * kPi * u2);
+        e.q[2] = std::sqrt(u1) * std::sin(2 * kPi * u3); e.q[3] = std::sqrt(u1) * std::cos(2 * kPi * u3);
         return e;
     };
     // FLOWERS: 4 POLLEN stacked from the tile
@@ -133,6 +140,9 @@ void World::stageField() {
             if (k < cap) {
                 e.state = ElemState::Held;
                 e.holder = int(r);
+                // resting in the ball path, queued from the shooter end
+                e.pathS = ballPathLength(int(r)) - e.radius - 0.0005 - k * (season_.pollenD + 0.0005);
+                e.p = {rb.pos.x, rb.pos.y, 0.15};
                 rb.held.push_back(e.id);
             } else {
                 // placed on the tiles contacting the robot, behind it, on its own side
@@ -311,8 +321,7 @@ void World::step() {
         }
     }
     collideRobots(dt);
-    interactRobotsElements(dt);
-    stepElements(dt);
+    stepBalls(dt);
     stepHives(dt);
     stepHumans(dt);
     stepFaults(dt);
@@ -420,365 +429,15 @@ void World::collideRobots(double dt) {
 }
 
 // ---------------------------------------------------------------------------------------
-void World::interactRobotsElements(double dt) {
-    for (size_t r = 0; r < robots_.size(); ++r) {
-        Robot& rb = *robots_[r].robot;
-        OBB2 fb = rb.footprint();
-        int intake = -1, fly = -1, gate = -1, hood = -1, turret = -1;
-        for (size_t m = 0; m < rb.mechs.size(); ++m) {
-            switch (rb.mechs[m].type) {
-                case MechType::Intake: intake = int(m); break;
-                case MechType::Flywheel: fly = int(m); break;
-                case MechType::Gate: gate = int(m); break;
-                case MechType::Hood: hood = int(m); break;
-                case MechType::Turret: turret = int(m); break;
-                default: break;
-            }
-        }
-        (void)hood; (void)turret;
-        bool alive = rb.rcAlive && !rb.disabled;
-        // Ground elements vs chassis and intake
-        for (auto& e : elements_) {
-            if (e.state != ElemState::Free) continue;
-            if (e.p.z > rb.cfg.height + e.radius) continue;
-            Vec2 l = fb.toLocal(e.p.xy());
-            if (std::fabs(l.x) > fb.halfL + e.radius + 0.10 || std::fabs(l.y) > fb.halfW + e.radius) continue;
-            if (intake >= 0 && alive) {
-                const Mechanism& im = rb.mechs[intake];
-                bool inZone = l.x > fb.halfL - 0.01 && l.x < fb.halfL + im.reach + e.radius && std::fabs(l.y) < im.width / 2 &&
-                              e.p.z < 0.25;
-                double sp = rb.surfaceSpeed(intake);
-                if (inZone && sp > 0.6 * im.captureSpeed && int(rb.held.size()) < im.capacity) {
-                    e.state = ElemState::Held;
-                    e.holder = int(r);
-                    rb.held.push_back(e.id);
-                    if (e.fromTip) {
-                        rules_->addViolation(*this, "G409", int(r), "VERBAL_WARNING", "YELLOW_CARD", true, robots_[r].ai && robots_[r].ai->intendsCatch(),
-                                             "robot collected an element released by a TIPPED HIVE before it touched anything else", t_);
-                        e.fromTip = false;
-                    }
-                    e.lastRobot = int(r);
-                    e.lastRobotTime = t_;
-                    intakeLoadUntil_[r] = t_ + 0.04;
-                    intakeLoad_[r] = e.mass * sp / 0.04 * im.rollerRadius + 0.12;
-                    if (onEvent) { Json d = Json::object(); d.set("element", e.id); d.set("type", e.type == ElemType::Pollen ? "POLLEN" : "NECTAR"); onEvent("intake", int(r), d); }
-                    continue;
-                }
-            }
-            // pushed by the chassis
-            if (std::fabs(l.x) < fb.halfL + e.radius && std::fabs(l.y) < fb.halfW + e.radius) {
-                Vec2 cp = fb.closest(e.p.xy());
-                Vec2 nrm = (e.p.xy() - cp);
-                double d = nrm.norm();
-                if (d < 1e-9) {  // centre inside the box: push out along the shallow axis
-                    double px = fb.halfL - std::fabs(l.x), py = fb.halfW - std::fabs(l.y);
-                    nrm = px < py ? fb.axisX() * sgn(l.x) : fb.axisY() * sgn(l.y);
-                    d = 0;
-                } else nrm = nrm / d;
-                Vec2 target = cp + nrm * (e.radius + 0.001);
-                e.p.x = target.x; e.p.y = target.y;
-                Vec2 pv = rb.vel + Vec2{-rb.omega * (cp - rb.pos).y, rb.omega * (cp - rb.pos).x};
-                Vec2 rel = e.v.xy() - pv;
-                double vn = rel.dot(nrm);
-                if (vn < 0) { Vec2 nv = e.v.xy() - nrm * (vn * (1 + season_.restitution)); e.v.x = nv.x; e.v.y = nv.y; }
-                if (e.fromTip) {
-                    rules_->addViolation(*this, "G409", int(r), "VERBAL_WARNING", "YELLOW_CARD", true, false,
-                                         "robot deflected an element released by a TIPPED HIVE before it touched anything else", t_);
-                    e.fromTip = false;
-                }
-                e.lastRobot = int(r);
-                e.lastRobotTime = t_;
-            }
-        }
-        // FLOWER bottom retrieval (only POLLEN fits the retrieval opening)
-        if (intake >= 0 && alive && rb.surfaceSpeed(intake) > 0.6 * rb.mechs[intake].captureSpeed &&
-            int(rb.held.size()) < rb.mechs[intake].capacity && t_ - rb.lastFeedTime > 0.05) {
-            const Mechanism& im = rb.mechs[intake];
-            for (size_t f = 0; f < season_.flowers.size(); ++f) {
-                Vec2 l = fb.toLocal(season_.flowers[f].axis);
-                if (l.x > fb.halfL - 0.02 && l.x < fb.halfL + im.reach + season_.flowerOuterR && std::fabs(l.y) < im.width / 2 &&
-                    !flowers_[f].stack.empty()) {
-                    int bottom = flowers_[f].stack.front();
-                    Element& e = elements_[bottom];
-                    if (e.type != ElemType::Pollen) continue;
-                    flowers_[f].stack.erase(flowers_[f].stack.begin());
-                    e.state = ElemState::Held;
-                    e.holder = int(r);
-                    e.container = -1;
-                    rb.held.push_back(e.id);
-                    e.lastRobot = int(r);
-                    intakeLoadUntil_[r] = t_ + 0.06;
-                    intakeLoad_[r] = 0.25;
-                    if (onEvent) { Json d = Json::object(); d.set("flower", int(f)); d.set("element", e.id); onEvent("flower_retrieve", int(r), d); }
-                    break;
-                }
-            }
-        }
-        // Launching
-        if (fly >= 0 && alive && !rb.held.empty()) {
-            const Mechanism& fm = rb.mechs[fly];
-            const GearedJoint& j = rb.joints[fm.joint];
-            const MotorUnit& mu = rb.elec.motors[j.motor];
-            double maxSurface = mu.spec.wFree() / j.ratio * fm.flyRadius;
-            bool open = true;
-            if (gate >= 0 && !rb.mechs[gate].servos.empty()) open = rb.servoFraction(rb.mechs[gate].servos[0]) > rb.mechs[gate].openAbove;
-            double interval = gate >= 0 ? rb.mechs[gate].feedInterval : 0.3;
-            if (open && t_ - rb.lastFeedTime >= interval && rb.surfaceSpeed(fly) >= fm.minLaunchFrac * maxSurface) launchFrom(int(r), fly);
-        }
-    }
-}
-
-void World::launchFrom(int r, int mech) {
-    Robot& rb = *robots_[r].robot;
-    Mechanism& fm = rb.mechs[mech];
-    GearedJoint& j = rb.joints[fm.joint];
-    int id = rb.held.back();
-    rb.held.pop_back();
-    Element& e = elements_[id];
-    double surface = j.w * fm.flyRadius;
-    double speed = fm.launchEff * surface * (e.type == ElemType::Nectar ? 0.93 : 1.0);
-    double elev = 0.9;
-    double yawOff = 0;
-    for (auto& m : rb.mechs) {
-        if (m.type == MechType::Hood && !m.servos.empty()) {
-            double f = rb.servoFraction(m.servos[0]);
-            // actual hood angle follows the servo's physical angle, not the command
-            const ServoUnit& sv = rb.elec.servos[m.servos[0]];
-            double span = sv.spec.rangeRad > 0 ? sv.spec.rangeRad : 1.0;
-            double fAct = clampd(sv.angle / span + 0.5, 0.0, 1.0);
-            (void)f;
-            elev = m.angleAt0 + fAct * (m.angleAt1 - m.angleAt0);
-        }
-        if (m.type == MechType::Turret) {
-            if (m.joint >= 0) yawOff = rb.joints[m.joint].theta / m.turretGear;
-            else if (!m.servos.empty()) yawOff = rb.elec.servos[m.servos[0]].angle / m.turretGear;
-        }
-    }
-    double yaw = rb.heading + yawOff;
-    Vec2 origin = rb.bodyToWorld({fm.launchFwd, 0});
-    e.state = ElemState::Free;
-    e.holder = -1;
-    e.launched = true;
-    e.lastRobot = r;
-    e.lastRobotTime = t_;
-    e.launchFrom = origin;
-    e.launchYaw = yaw;
-    e.p = {origin.x, origin.y, fm.launchHeight};
-    e.v = Vec3{rb.vel.x, rb.vel.y, 0} + Vec3{std::cos(yaw) * std::cos(elev), std::sin(yaw) * std::cos(elev), std::sin(elev)} * speed;
-    // energy extracted from the flywheel (ball KE / transfer efficiency)
-    double J = j.jl + j.jmOut();
-    double eLoss = 0.5 * e.mass * speed * speed / fm.contactEnergyLoss;
-    double before = j.w;
-    double w2 = j.w * j.w - 2 * eLoss / J;
-    j.w = sgn(j.w) * std::sqrt(std::max(0.0, w2));
-    j.wm = j.w;
-    rb.lastFeedTime = t_;
-    launches.push_back({t_, r, id, speed, elev, yaw, before, j.w});
-    if (onEvent) {
-        Json d = Json::object();
-        d.set("element", id); d.set("speed", speed); d.set("elevation", elev); d.set("flywheelBefore", before); d.set("flywheelAfter", j.w);
-        onEvent("launch", r, d);
-    }
-}
-
-// ---------------------------------------------------------------------------------------
-void World::ejectElement(Element& e) {
-    e.state = ElemState::OutOfField;
-    e.v = {0, 0, 0};
-    rules_->onElementLeftField(*this, e.id, t_);
-    if (e.type == ElemType::Pollen) {
-        e.reentryAt = t_ + 5.0 + rngElements_.uniform(0, 5);  // FIELD STAFF reintroduce at the earliest safe opportunity
-    } else {
-        e.state = ElemState::HumanArea;                      // NECTAR returns to its ALLIANCE's DRIVE TEAM
-        humans_[int(e.color)].waitingIds.push_back(e.id);
-        humans_[int(e.color)].nectarInArea++;
-        const AABB2& area = season_.allianceArea[int(e.color)];
-        e.p = {(area.xMin + area.xMax) / 2, (area.yMin + area.yMax) / 2, e.radius};
-    }
-}
-
-void World::stepElements(double dt) {
-    const double half = season_.half;
-    for (auto& e : elements_) {
-        switch (e.state) {
-            case ElemState::Held: {
-                Robot& rb = *robots_[e.holder].robot;
-                e.p = {rb.pos.x, rb.pos.y, 0.18};
-                e.v = {rb.vel.x, rb.vel.y, 0};
-                continue;
-            }
-            case ElemState::InFlower: {
-                const FlowerState& fs = flowers_[e.container];
-                size_t k = std::find(fs.stack.begin(), fs.stack.end(), e.id) - fs.stack.begin();
-                double z = 0;
-                for (size_t i = 0; i <= k; ++i) {
-                    const Element& o = elements_[fs.stack[i]];
-                    z += (i == 0 ? o.radius : elements_[fs.stack[i - 1]].radius + o.radius) * 1.03;
-                }
-                Vec2 ax = season_.flowers[e.container].axis;
-                double zig = (k % 2 ? 1 : -1) * 0.006;
-                e.p = {ax.x + zig, ax.y, z};
-                e.v = {0, 0, 0};
-                continue;
-            }
-            case ElemState::InCell:
-            case ElemState::HumanArea:
-                continue;
-            case ElemState::OutOfField:
-                if (e.reentryAt >= 0 && t_ >= e.reentryAt) {
-                    // nearest convenient location: just inside the closest wall
-                    Vec2 p = e.p.xy();
-                    p.x = clampd(p.x, -half + 0.1, half - 0.1);
-                    p.y = clampd(p.y, -half + 0.1, half - 0.1);
-                    e.p = {p.x, p.y, e.radius};
-                    e.state = ElemState::Free;
-                    e.reentryAt = -1;
-                }
-                continue;
-            case ElemState::Free: break;
-        }
-        Vec3 prev = e.p;
-        double area = kPi * e.radius * e.radius;
-        double sp = e.v.norm();
-        Vec3 drag = e.v * (-0.5 * kAirRho * kBallCd * area * sp / e.mass);
-        e.v += (drag + Vec3{0, 0, -kG}) * dt;
-        e.p += e.v * dt;
-        // floor
-        if (e.p.z < e.radius) {
-            e.p.z = e.radius;
-            if (e.v.z < 0) {
-                e.v.z = -e.v.z * season_.restitution;
-                if (e.v.z < 0.25) e.v.z = 0;
-                e.v.x *= 0.92;
-                e.v.y *= 0.92;
-            }
-            e.fromTip = false;
-        }
-        if (e.p.z <= e.radius + 1e-4) {  // rolling resistance
-            Vec2 vh = e.v.xy();
-            double s = vh.norm();
-            double dv = season_.rollingRes * kG * dt * 3.0;
-            if (s <= dv) { e.v.x = e.v.y = 0; }
-            else { Vec2 nv = vh * ((s - dv) / s); e.v.x = nv.x; e.v.y = nv.y; }
-        }
-        // perimeter
-        for (int axis = 0; axis < 2; ++axis) {
-            double& c = axis == 0 ? e.p.x : e.p.y;
-            double& v = axis == 0 ? e.v.x : e.v.y;
-            if (std::fabs(c) > half - e.radius) {
-                if (e.p.z < season_.wallHeight + e.radius * 0.5) {
-                    c = sgn(c) * (half - e.radius);
-                    if (v * sgn(c) > 0) v = -v * 0.5;
-                    e.fromTip = false;
-                } else if (std::fabs(c) > half + 0.05) {
-                    ejectElement(e);
-                    break;
-                }
-            }
-        }
-        if (e.state != ElemState::Free) continue;
-        // HIVE frame legs
-        for (auto& leg : season_.legs) {
-            Vec3 cp;
-            double d = segmentPointDistance(leg.base, leg.apex, e.p, &cp);
-            if (d < e.radius + season_.legRadius) {
-                Vec3 nrm = (e.p - cp).normalized();
-                e.p = cp + nrm * (e.radius + season_.legRadius + 1e-4);
-                double vn = e.v.dot(nrm);
-                if (vn < 0) e.v -= nrm * (vn * (1 + season_.restitution));
-                e.fromTip = false;
-            }
-        }
-        // FLOWERS: entry through the top opening, otherwise bounce off the structure
-        for (size_t f = 0; f < season_.flowers.size(); ++f) {
-            Vec2 ax = season_.flowers[f].axis;
-            Vec2 dxy = e.p.xy() - ax;
-            double hd = dxy.norm();
-            if (hd > season_.flowerOuterR + e.radius || e.p.z > season_.flowerTopH + 0.05) continue;
-            bool crossingTop = prev.z >= season_.flowerTopH && e.p.z < season_.flowerTopH && e.v.z < 0;
-            if (crossingTop && hd < season_.flowerOpeningD / 2) {
-                FlowerState& fs = flowers_[f];
-                double top = 0;
-                for (size_t i = 0; i < fs.stack.size(); ++i) top += elements_[fs.stack[i]].radius * 2 * 1.03;
-                if (top + 2 * e.radius < season_.flowerTopH + e.radius) {
-                    e.state = ElemState::InFlower;
-                    e.container = int(f);
-                    fs.stack.push_back(e.id);
-                    if (e.type == ElemType::Nectar) rules_->onNectarEnteredFlower(*this, e.id, int(f), t_);
-                    if (onEvent) { Json d = Json::object(); d.set("element", e.id); d.set("flower", int(f)); onEvent("flower_entry", e.lastRobot, d); }
-                    break;
-                }
-            }
-            if (e.p.z < season_.flowerTopH && hd < season_.flowerOuterR + e.radius) {
-                Vec2 nrm = hd > 1e-9 ? dxy / hd : Vec2{1, 0};
-                Vec2 np = ax + nrm * (season_.flowerOuterR + e.radius + 1e-4);
-                e.p.x = np.x; e.p.y = np.y;
-                double vn = e.v.xy().dot(nrm);
-                if (vn < 0) { e.v.x -= nrm.x * vn * (1 + season_.restitution); e.v.y -= nrm.y * vn * (1 + season_.restitution); }
-                e.fromTip = false;
-            }
-        }
-        if (e.state != ElemState::Free) continue;
-        // CELLS: capture through the up-facing opening
-        for (int h = 0; h < 2; ++h) {
-            HiveState& hs = hives_[h];
-            if (hs.tipping) continue;
-            Vec3 o = cellOpeningCenter(h, hs.upCell);
-            bool inside = std::fabs(e.p.x - o.x) < season_.cellHalfX && std::fabs(e.p.y - o.y) < season_.cellHalfY;
-            if (inside && prev.z >= o.z && e.p.z < o.z && e.v.z < 0) {
-                e.state = ElemState::InCell;
-                e.container = h * 2 + hs.upCell;
-                hs.contents[hs.upCell].push_back(e.id);
-                double w = e.type == ElemType::Pollen ? season_.pollenTipW : season_.nectarTipW;
-                hs.weight += w + season_.impactBonusPerMps * std::fabs(e.v.z);  // 'tossed in' elements tip more readily (EFSG 12.3)
-                e.p = {o.x + rngElements_.uniform(-0.15, 0.15), o.y, o.z - 0.12};
-                e.v = {0, 0, 0};
-                if (onEvent) { Json d = Json::object(); d.set("element", e.id); d.set("hive", toString(Alliance(h))); d.set("weight", hs.weight); onEvent("cell_entry", e.lastRobot, d); }
-                break;
-            }
-            // solid underside of the up cell and the down cell bodies
-            bool underUp = inside && e.p.z < o.z - 0.02 && e.p.z > o.z - 0.30;
-            if (underUp && e.v.z > 0 && prev.z <= o.z - 0.30) { e.v.z = -e.v.z * season_.restitution; e.fromTip = false; }
-        }
-    }
-    // element-element collisions (free elements only)
-    for (size_t i = 0; i < elements_.size(); ++i) {
-        Element& a = elements_[i];
-        if (a.state != ElemState::Free) continue;
-        for (size_t k = i + 1; k < elements_.size(); ++k) {
-            Element& b = elements_[k];
-            if (b.state != ElemState::Free) continue;
-            Vec3 d = b.p - a.p;
-            double rr = a.radius + b.radius;
-            double d2 = d.norm2();
-            if (d2 >= rr * rr || d2 < 1e-12) continue;
-            double dist = std::sqrt(d2);
-            Vec3 nrm = d / dist;
-            double pen = rr - dist;
-            double ma = a.mass, mb = b.mass;
-            a.p -= nrm * (pen * mb / (ma + mb));
-            b.p += nrm * (pen * ma / (ma + mb));
-            double vn = (b.v - a.v).dot(nrm);
-            if (vn < 0) {
-                double jimp = -(1 + 0.6) * vn / (1 / ma + 1 / mb);
-                a.v -= nrm * (jimp / ma);
-                b.v += nrm * (jimp / mb);
-            }
-            a.fromTip = false;
-            b.fromTip = false;
-        }
-    }
-}
-
 void World::releaseFromCell(int h, int c) {
     HiveState& hs = hives_[h];
     const HiveDef& hd = season_.hives[h];
     double side = hd.cells[c].side == "audience" ? -1.0 : 1.0;
-    for (int id : hs.contents[c]) {
-        Element& e = elements_[id];
+    for (size_t k = 0; k < hs.contents[c].size(); ++k) {
+        Element& e = elements_[hs.contents[c][k]];
         e.state = ElemState::Free;
         e.container = -1;
-        e.p = {hd.pivot.x + rngElements_.uniform(-0.18, 0.18), side * rngElements_.uniform(0.25, 0.40), 0.95};
+        e.p = cellSlot(h, c, int(k));
         e.v = {rngElements_.normal(0, 0.3), side * rngElements_.uniform(0.2, 0.9), rngElements_.uniform(-0.5, 0.2)};
         e.fromTip = true;
         e.launched = false;
@@ -931,7 +590,8 @@ Json World::snapshot() const {
     for (auto& e : elements_) {
         Json o = Json::array();
         for (double v : {e.p.x, e.p.y, e.p.z, e.v.x, e.v.y, e.v.z, double(int(e.state)), double(e.holder), double(e.container),
-                         double(e.lastRobot), e.fromTip ? 1.0 : 0.0, e.reentryAt, e.mass})
+                         double(e.lastRobot), e.fromTip ? 1.0 : 0.0, e.reentryAt, e.mass, e.w.x, e.w.y, e.w.z,
+                         e.q[0], e.q[1], e.q[2], e.q[3], e.pathS, e.pathV, e.radius})
             o.push(v);
         es.push(o);
     }
@@ -985,6 +645,12 @@ void World::restore(const Json& j) {
         e.p = {o[0].num(), o[1].num(), o[2].num()}; e.v = {o[3].num(), o[4].num(), o[5].num()};
         e.state = ElemState(o[6].integer()); e.holder = o[7].integer(); e.container = o[8].integer();
         e.lastRobot = o[9].integer(); e.fromTip = o[10].num() != 0; e.reentryAt = o[11].num(); e.mass = o[12].num();
+        if (o.size() >= 22) {
+            e.w = {o[13].num(), o[14].num(), o[15].num()};
+            for (int q = 0; q < 4; ++q) e.q[q] = o[16 + q].num();
+            e.pathS = o[20].num(); e.pathV = o[21].num();
+            if (o.size() >= 23) e.radius = o[22].num();
+        }
     }
     for (int h = 0; h < 2; ++h) {
         const Json& o = j["hives"][h];
