@@ -107,7 +107,7 @@ body.touch-on .robothud { bottom: calc(160px + env(safe-area-inset-bottom, 0px))
 #scr-menu { background: linear-gradient(90deg, rgba(8,10,12,.92) 0%, rgba(8,10,12,.78) 34%, rgba(8,10,12,.18) 62%, rgba(8,10,12,0) 100%); }
 @media (max-width: 760px) { #scr-menu { background: linear-gradient(180deg, rgba(8,10,12,.55), rgba(8,10,12,.9) 45%); } }
 .menu-inner { min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 26px; zoom: var(--ui-scale);
-  padding: calc(56px + env(safe-area-inset-top, 0px)) 16px calc(56px + env(safe-area-inset-bottom, 0px)) max(16px, min(7vw, 96px), env(safe-area-inset-left, 0px)); max-width: 520px; }
+  padding: calc(56px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(56px + env(safe-area-inset-bottom, 0px)) max(16px, min(7vw, 96px), env(safe-area-inset-left, 0px)); max-width: 520px; }
 .brand .kicker { font-family: var(--font-display); font-size: 14px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
 .brand h1 { font-size: clamp(46px, 7vw, 72px); line-height: .95; margin-top: 6px; }
 .brand .lede { margin-top: 10px; }
