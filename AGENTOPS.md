@@ -32,3 +32,10 @@
 - Update the ledger row (status, tests, limitations) in the same commit.
 - Put investigations and decisions in DEEP_ANALYSIS.md; durable facts in CONTEXT_STORE.md.
 - Commit messages: what changed and why; never claim validation you did not run.
+
+## Team imitation (FTCScout)
+`python3 tools/ftcscout_imitate.py <team> [--event CODE] [--estimate]` fetches the team's BIOBUZZ
+statistics, calibrates an AI against its OPR components (≈2 min, local) and writes
+`profiles/teams/<team>.team.json` plus the raw API response. Use it with
+`"controller": "ai", "ai": {"imitate": "profiles/teams/<team>.team.json"}`. Read the profile's
+`calibration.unreachable` before trusting it.

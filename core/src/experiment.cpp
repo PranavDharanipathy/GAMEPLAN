@@ -47,6 +47,34 @@ Json ResourceEstimate::toJson() const {
 }
 
 namespace {
+// Per-alliance score components named like FTCScout's MatchScores2026Alliance / OPR groups, so
+// simulated contributions compare 1:1 with real team statistics (tools/ftcscout_imitate.py).
+static Json allianceComponents(const Json& r, const std::string& alliance) {
+    double leave = 0, aPark = 0, aHive = 0, dHive = 0, flower = 0, garden = 0, dPark = 0, tips = 0, pen = 0;
+    for (size_t i = 0; i < r["scoreEvents"].size(); ++i) {
+        const Json& e = r["scoreEvents"][i];
+        if (e["alliance"].str() != alliance) continue;
+        const std::string k = e["kind"].str(), per = e["period"].str();
+        double p = e["points"].num();
+        if (k == "LEAVE") leave += p;
+        else if (k == "PARK_AUTO") aPark += p;
+        else if (k == "HIVE_TIP") { tips += 1; (per == "AUTO" ? aHive : dHive) += p; }
+        else if (k == "CELL_REMAINING") dHive += p;
+        else if (k == "OWNED_FLOWER" || k == "BOTTOM_NECTAR_BONUS") flower += p;
+        else if (k == "GARDEN") garden += p;
+        else if (k == "PARK_TELEOP") dPark += p;
+    }
+    for (size_t i = 0; i < r["violations"].size(); ++i)
+        if (r["violations"][i]["offender"].str() == alliance) pen += r["violations"][i]["foulPoints"].num();
+    Json c = Json::object();
+    c.set("autoLeavePoints", leave); c.set("autoParkPoints", aPark); c.set("autoHivePoints", aHive);
+    c.set("dcHivePoints", dHive); c.set("dcFlowerPoints", flower); c.set("dcGardenPoints", garden);
+    c.set("dcParkPoints", dPark); c.set("tips", tips); c.set("penaltyPointsCommitted", pen);
+    c.set("autoPoints", leave + aPark + aHive); c.set("dcPoints", dHive + flower + garden + dPark);
+    c.set("totalPointsNp", leave + aPark + aHive + dHive + flower + garden + dPark);
+    return c;
+}
+
 // JSON patch: keys are dotted paths, array indices allowed ("robots.1.ai.personality")
 void patch(Json& doc, const std::string& path, const Json& value) {
     // "a.b.c" walks objects/arrays; "a.b:x.y.z" uses the literal key "x.y.z" as the last step
@@ -177,6 +205,23 @@ Json runExperiment(const ExperimentSpec& s, const std::string& outDir) {
         if (r.isNull()) { row.set("error", err); return row; }
         row.set("red", r["red"]["total"]); row.set("blue", r["blue"]["total"]); row.set("redTips", r["red"]["tips"]); row.set("blueTips", r["blue"]["tips"]);
         row.set("violations", double(r["violations"].size())); row.set("faults", double(r["faults"].size()));
+        row.set("redComponents", allianceComponents(r, "red")); row.set("blueComponents", allianceComponents(r, "blue"));
+        // per-robot LEAVE / PARK (FTCScout's "...Individual" fields)
+        Json ind = Json::array();
+        for (size_t k = 0; k < mj["robots"].size(); ++k) {
+            double leave = 0, ap = 0, dp = 0;
+            for (size_t i = 0; i < r["scoreEvents"].size(); ++i) {
+                const Json& e = r["scoreEvents"][i];
+                if (int(e["robot"].num(-1)) != int(k)) continue;
+                const std::string kd = e["kind"].str();
+                if (kd == "LEAVE") leave += e["points"].num(); else if (kd == "PARK_AUTO") ap += e["points"].num(); else if (kd == "PARK_TELEOP") dp += e["points"].num();
+            }
+            Json o = Json::object();
+            o.set("label", mj["robots"][k]["label"]); o.set("autoLeavePointsIndividual", leave);
+            o.set("autoParkPointsIndividual", ap); o.set("dcParkPointsIndividual", dp);
+            ind.push(o);
+        }
+        row.set("robotIndividual", ind);
         row.set("objective", objectiveValue(r, s.objective));
         row.set("finalStateHash", r["finalStateHash"]);
         Json sp = Json::object();

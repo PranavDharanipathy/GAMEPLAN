@@ -189,6 +189,18 @@ void MatchRules::onHumanNectarEntry(World& w, Alliance a, double t, bool permitt
 void MatchRules::onElementLeftField(World& w, int element, double t) {
     auto& e = w.elements()[element];
     if (e.lastRobot < 0 || t - e.lastRobotTime > 3.0) return;
+    // A missed shot aimed at a scoring target (any HIVE cell or FLOWER) is not a deliberate ejection;
+    // repetition of misses does not make it one. Only launches/pushes away from targets count.
+    if (e.launched) {
+        auto aimedAt = [&](Vec2 target) {
+            Vec2 d = target - e.launchFrom;
+            return d.norm() > 0.05 && std::fabs(wrapAngle(std::atan2(d.y, d.x) - e.launchYaw)) < 0.6;
+        };
+        bool scoringAttempt = false;
+        for (int h = 0; h < 2; ++h) scoringAttempt = scoringAttempt || aimedAt(season_.hives[h].pivot.xy());
+        for (auto& f : season_.flowers) scoringAttempt = scoringAttempt || aimedAt(f.axis);
+        if (scoringAttempt) return;
+    }
     addViolation(w, "G405", e.lastRobot, "NONE", "MAJOR_FOUL", true, false,
                  "scoring element left the FIELD after robot contact/launch (penalised only if perceived deliberate)", t);
 }

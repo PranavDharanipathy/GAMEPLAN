@@ -561,6 +561,8 @@ void World::launchFrom(int r, int mech) {
     e.launched = true;
     e.lastRobot = r;
     e.lastRobotTime = t_;
+    e.launchFrom = origin;
+    e.launchYaw = yaw;
     e.p = {origin.x, origin.y, fm.launchHeight};
     e.v = Vec3{rb.vel.x, rb.vel.y, 0} + Vec3{std::cos(yaw) * std::cos(elev), std::sin(yaw) * std::cos(elev), std::sin(elev)} * speed;
     // energy extracted from the flywheel (ball KE / transfer efficiency)

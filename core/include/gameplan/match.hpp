@@ -36,6 +36,8 @@ struct RobotEntry {
     Personality personality;
     double difficulty = 0.6;
     std::string instruction;
+    Json weights;              // optional explicit task weights {pollen, hive, flower, garden}
+    std::string imitation;     // team profile the AI parameters came from (tools/ftcscout_imitate.py)
 };
 
 struct MatchSetup {

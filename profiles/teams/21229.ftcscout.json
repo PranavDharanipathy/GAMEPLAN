@@ -1,0 +1,91 @@
+{
+ "query": "query($n: Int!, $s: Int!) { teamByNumber(number: $n) { number name events(season: $s) {\n  eventCode event { name start end }\n  stats { ... on TeamEventStats2026 { qualMatchesPlayed opr { autoLeavePointsIndividual autoParkPointsIndividual autoHivePoints dcHivePoints dcFlowerPoints dcGardenPoints dcParkPointsIndividual tips penaltyPointsCommitted autoPoints dcPoints totalPointsNp } avg { autoLeavePointsIndividual autoParkPointsIndividual autoHivePoints dcHivePoints dcFlowerPoints dcGardenPoints dcParkPointsIndividual tips penaltyPointsCommitted autoPoints dcPoints totalPointsNp } dev { autoLeavePointsIndividual autoParkPointsIndividual autoHivePoints dcHivePoints dcFlowerPoints dcGardenPoints dcParkPointsIndividual tips penaltyPointsCommitted autoPoints dcPoints totalPointsNp } } } } } }",
+ "variables": {
+  "n": 21229,
+  "s": 2026
+ },
+ "fetchedAt": "2026-11-01T08:38:34.115591Z",
+ "api": "https://api.ftcscout.org/graphql",
+ "responseSha256": "d02635e69f23bb00cbabcb3202c492e0ed6b612d6cb36d476df00b12c21f6da7",
+ "response": {
+  "data": {
+   "teamByNumber": {
+    "number": 21229,
+    "name": "Quality Control",
+    "events": [
+     {
+      "eventCode": "USWASAM1",
+      "event": {
+       "name": "Salk League Meet 1",
+       "start": "2026-10-31",
+       "end": "2026-10-31"
+      },
+      "stats": {
+       "qualMatchesPlayed": 6,
+       "opr": {
+        "autoLeavePointsIndividual": 3,
+        "autoParkPointsIndividual": 5,
+        "autoHivePoints": 30.02593610300077,
+        "dcHivePoints": 102.44473254052338,
+        "dcFlowerPoints": 0,
+        "dcGardenPoints": 1.338420078379221,
+        "dcParkPointsIndividual": 5,
+        "tips": 6.5667934791131835,
+        "penaltyPointsCommitted": 0.4788519979661503,
+        "autoPoints": 41.84655898483387,
+        "dcPoints": 109.25744666296907,
+        "totalPointsNp": 151.10400564780298
+       },
+       "avg": {
+        "autoLeavePointsIndividual": 3,
+        "autoParkPointsIndividual": 5,
+        "autoHivePoints": 30,
+        "dcHivePoints": 117.33333333333333,
+        "dcFlowerPoints": 0,
+        "dcGardenPoints": 2.3333333333333335,
+        "dcParkPointsIndividual": 5,
+        "tips": 7.166666666666667,
+        "penaltyPointsCommitted": 0,
+        "autoPoints": 46,
+        "dcPoints": 129.66666666666666,
+        "totalPointsNp": 175.66666666666666
+       },
+       "dev": {
+        "autoLeavePointsIndividual": 0,
+        "autoParkPointsIndividual": 0,
+        "autoHivePoints": 10,
+        "dcHivePoints": 12.147244772192398,
+        "dcFlowerPoints": 0,
+        "dcGardenPoints": 0.9428090415820634,
+        "dcParkPointsIndividual": 0,
+        "tips": 0.37267799624996495,
+        "penaltyPointsCommitted": 0,
+        "autoPoints": 10,
+        "dcPoints": 12.684198393626966,
+        "totalPointsNp": 8.615231988880057
+       }
+      }
+     },
+     {
+      "eventCode": "USWASAM2",
+      "event": {
+       "name": "Salk League Meet 2",
+       "start": "2026-11-14",
+       "end": "2026-11-14"
+      },
+      "stats": null
+     },
+     {
+      "eventCode": "USWAWULT",
+      "event": {
+       "name": "Wu League Tournament",
+       "start": "2026-12-12",
+       "end": "2026-12-12"
+      },
+      "stats": null
+     }
+    ]
+   }
+  }
+ }
+}

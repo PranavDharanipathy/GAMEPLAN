@@ -33,6 +33,8 @@ struct Element {
     double lastRobotTime = -1;
     bool fromTip = false;   // released by a TIPPED HIVE and not yet touched anything else (G409)
     bool launched = false;
+    Vec2 launchFrom;        // where and in which direction it was last launched (G405 intent)
+    double launchYaw = 0;
     double reentryAt = -1;  // field staff / human re-entry time for out-of-field elements
     bool enteredFlowerEarly = false;
 };

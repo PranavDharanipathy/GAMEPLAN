@@ -43,7 +43,7 @@ Statuses: Not started · Investigating · Designed · Implementing · Implemente
 | Physical gamepads | Implemented (unbuilt) | `GamePlanInput.cpp` | none | calibration UI missing |
 | Replay viewer UI | Not started | — | data supports scrubbing | Unreal replay actor to write |
 | CI (Linux/macOS/Windows) | Implemented | `.github/workflows/ci.yml` | not yet run | Windows integration skipped |
-| FTCScout / team imitation | Not started | — | — | ROADMAP 8 |
+| FTCScout / team imitation | Implemented | `tools/ftcscout_imitate.py`, `experiment.cpp` (FTCScout-named components), `match.cpp` (`ai.imitate`, `ai.weights`) | real BIOBUZZ OPR for teams 8807 (21 pts: matched within 2σ except auto park) and 21229 (151 pts: unreachable, reported); integration check offline | imitates scoring profile only; AI ceiling with the generic launcher ≈ 70 pts solo, so top teams are reported unreachable; defense not calibrated |
 | Learning bots | Not started | — | — | ROADMAP |
 | Video ingestion / calibration | Not started | — | — | ROADMAP 6–7 |
 | Multiplayer / spectators | Not started | — | — | ROADMAP 9 |
@@ -62,7 +62,7 @@ personalities, difficulty, partner instructions (XIII), recording/replay data/co
 AI (XV), experiments with estimates (XVII), sandbox (XX, partial).
 Missing or partial (recorded above, not hidden): Unreal build/validation, driver UI screens, replay
 viewer, CAD tessellation and digital-twin reconstruction from geometry, electrical config editor UI,
-video ingestion/calibration, FTCScout, learning bots, multiplayer, workspaces/versioning UI, robot
+video ingestion/calibration, learning bots, multiplayer, workspaces/versioning UI, robot
 library/consent, installer, OS sandboxes on macOS/Windows, AprilTag robotPose.
 
 ## Audit 2 — contradictions and architecture

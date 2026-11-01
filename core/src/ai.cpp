@@ -169,13 +169,57 @@ int AIController::chooseElement(World& w, int self, double t, bool nectarOnly) {
     return best;
 }
 
+// Liang-Barsky: does segment a->b pass through the axis-aligned box?
+static bool segmentHitsBox(Vec2 a, Vec2 b, double x0, double x1, double y0, double y1) {
+    double t0 = 0, t1 = 1;
+    Vec2 d = b - a;
+    const double p[4] = {-d.x, d.x, -d.y, d.y}, q[4] = {a.x - x0, x1 - a.x, a.y - y0, y1 - a.y};
+    for (int i = 0; i < 4; ++i) {
+        if (std::fabs(p[i]) < 1e-12) { if (q[i] < 0) return false; continue; }
+        double t = q[i] / p[i];
+        if (p[i] < 0) t0 = std::max(t0, t); else t1 = std::min(t1, t);
+        if (t0 > t1) return false;
+    }
+    return true;
+}
+
+// Route around the HIVE frame like a driver would: if the straight line to the goal crosses the
+// frame's footprint (legs + clearance), aim for the corner waypoint that gives the shortest
+// unobstructed two-leg path. Goals inside the clearance band are driven to directly.
+static Vec2 routeAroundHive(const SeasonDef& s, Vec2 from, Vec2 goal, double clearance) {
+    double x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (auto& leg : s.legs) {
+        x0 = std::min(x0, leg.base.x); x1 = std::max(x1, leg.base.x);
+        y0 = std::min(y0, leg.base.y); y1 = std::max(y1, leg.base.y);
+    }
+    if (s.legs.empty()) return goal;
+    double bx0 = x0 - clearance, bx1 = x1 + clearance, by0 = y0 - clearance, by1 = y1 + clearance;
+    auto inside = [&](Vec2 p) { return p.x > bx0 && p.x < bx1 && p.y > by0 && p.y < by1; };
+    if (inside(goal) || inside(from) || !segmentHitsBox(from, goal, bx0, bx1, by0, by1)) return goal;
+    const double m = 0.12;   // waypoint sits just outside the band
+    Vec2 corners[4] = {{bx0 - m, by0 - m}, {bx1 + m, by0 - m}, {bx0 - m, by1 + m}, {bx1 + m, by1 + m}};
+    Vec2 best = goal;
+    double bestLen = 1e9;
+    for (auto& c : corners) {
+        if (std::fabs(c.x) > s.half - 0.25 || std::fabs(c.y) > s.half - 0.25) continue;
+        if (segmentHitsBox(from, c, bx0, bx1, by0, by1)) continue;
+        double len = (c - from).norm() + (goal - c).norm() + (segmentHitsBox(c, goal, bx0, bx1, by0, by1) ? 2.0 : 0.0);
+        if (len < bestLen) { bestLen = len; best = c; }
+    }
+    return best;
+}
+
 void AIController::drive(World& w, int self, Vec2 goal, double goalHeading, double speedFrac, bool faceGoal) {
     Robot& r = *w.robots()[self].robot;
     Perceived me = perceiveSelf(w, self);
     const SeasonDef& s = w.season();
+    double halfDiag = 0.5 * std::sqrt(r.cfg.length * r.cfg.length + r.cfg.width * r.cfg.width);
+    Vec2 finalGoal = goal;
+    goal = routeAroundHive(s, me.pos, goal, halfDiag + 0.12);
+    bool waypoint = (goal - finalGoal).norm() > 1e-9;
     Vec2 to = goal - me.pos;
     double dist = to.norm();
-    Vec2 vDes = dist > 0.02 ? to.normalized() * std::min(1.0, dist / 0.35) : Vec2{0, 0};
+    Vec2 vDes = dist > 0.02 ? to.normalized() * (waypoint ? 1.0 : std::min(1.0, dist / 0.35)) : Vec2{0, 0};
     // obstacle repulsion: robots, HIVE legs, FLOWERS, walls
     auto repel = [&](Vec2 c, double radius, double gain) {
         Vec2 d = me.pos - c;
@@ -186,6 +230,11 @@ void AIController::drive(World& w, int self, Vec2 goal, double goalHeading, doub
         if (int(k) == self) continue;
         double rad = 0.55 + 0.2 * p_.caution + (int(k) == partner ? d_.keepAwayFromPartner : 0.0);
         repel(w.robots()[k].robot->pos, rad, 1.2);
+        // G421: drivers back off before a PIN is called (3 s); the sooner, the more careful
+        if (w.robots()[k].robot->alliance != r.alliance && w.robotContactTime(self, int(k)) > 1.0 + 0.8 * (1.0 - p_.caution)) {
+            Vec2 away = me.pos - w.robots()[k].robot->pos;
+            if (away.norm() > 1e-6) vDes = away.normalized() * 1.0;
+        }
     }
     // HIVE frame legs: repel from the leg's footprint between the floor and robot height
     for (auto& leg : s.legs) {
@@ -275,10 +324,14 @@ void AIController::update(World& w, int self, double t, double dt) {
         lastPos_ = r.pos;
         wantShoot_ = false;
         bool decideWrong = rng_.bernoulli(p_.errorRate);
-        if (ph == Phase::Teleop && d_.parkAtEnd && remaining < d_.parkEarlyS) {
+        const AABB2& parkLz = s.loadingZone[int(r.alliance)];
+        Vec2 parkGoal{(parkLz.xMin + parkLz.xMax) / 2 + (r.alliance == Alliance::Red ? 0.12 : -0.12), (parkLz.yMin + parkLz.yMax) / 2};
+        // a driver leaves for PARK early enough for the trip: ~0.45 m/s effective average speed around
+        // the HIVE and other robots, plus a few seconds of margin (scaled down for cautious drivers)
+        double parkLeadS = std::max(d_.parkEarlyS, 4.0 + (parkGoal - r.pos).norm() / (0.35 + 0.2 * p_.maxSpeedFrac));
+        if (ph == Phase::Teleop && d_.parkAtEnd && remaining < parkLeadS) {
             task_ = "park";
-            const AABB2& lz = s.loadingZone[int(r.alliance)];
-            goal_ = {(lz.xMin + lz.xMax) / 2 + (r.alliance == Alliance::Red ? 0.12 : -0.12), (lz.yMin + lz.yMax) / 2};
+            goal_ = parkGoal;
             wantIntake_ = false;
             wantSpin_ = false;
         } else if (ph == Phase::Auto && w.rules().remaining(t) < 4.0 && p_.autoQuality > 0.5) {

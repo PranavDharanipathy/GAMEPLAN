@@ -1,0 +1,109 @@
+{
+ "query": "query($n: Int!, $s: Int!) { teamByNumber(number: $n) { number name events(season: $s) {\n  eventCode event { name start end }\n  stats { ... on TeamEventStats2026 { qualMatchesPlayed opr { autoLeavePointsIndividual autoParkPointsIndividual autoHivePoints dcHivePoints dcFlowerPoints dcGardenPoints dcParkPointsIndividual tips penaltyPointsCommitted autoPoints dcPoints totalPointsNp } avg { autoLeavePointsIndividual autoParkPointsIndividual autoHivePoints dcHivePoints dcFlowerPoints dcGardenPoints dcParkPointsIndividual tips penaltyPointsCommitted autoPoints dcPoints totalPointsNp } dev { autoLeavePointsIndividual autoParkPointsIndividual autoHivePoints dcHivePoints dcFlowerPoints dcGardenPoints dcParkPointsIndividual tips penaltyPointsCommitted autoPoints dcPoints totalPointsNp } } } } } }",
+ "variables": {
+  "n": 8807,
+  "s": 2026
+ },
+ "fetchedAt": "2026-11-01T08:47:19Z",
+ "api": "https://api.ftcscout.org/graphql",
+ "responseSha256": "b94b5a9a442f7241b608ed60d5fc304ead33fface39c64b5bf6a6de4e32ca76a",
+ "response": {
+  "data": {
+   "teamByNumber": {
+    "number": 8807,
+    "name": "Molten Sprockets",
+    "events": [
+     {
+      "eventCode": "USIACONELT",
+      "event": {
+       "name": "Coneflower Tournament",
+       "start": "2027-01-30",
+       "end": "2027-01-30"
+      },
+      "stats": null
+     },
+     {
+      "eventCode": "USIACONEM1",
+      "event": {
+       "name": "Coneflower Sgt Bluff",
+       "start": "2026-10-24",
+       "end": "2026-10-24"
+      },
+      "stats": {
+       "qualMatchesPlayed": 6,
+       "opr": {
+        "autoLeavePointsIndividual": 2,
+        "autoParkPointsIndividual": 3.3333333333333335,
+        "autoHivePoints": 1.4600978947754109,
+        "dcHivePoints": 7.6277055056996,
+        "dcFlowerPoints": 0,
+        "dcGardenPoints": 0.4516348728861203,
+        "dcParkPointsIndividual": 5,
+        "tips": 0.238998504273861,
+        "penaltyPointsCommitted": 0,
+        "autoPoints": 8.157506804126477,
+        "dcPoints": 12.80648029093246,
+        "totalPointsNp": 20.963987095058943
+       },
+       "avg": {
+        "autoLeavePointsIndividual": 2,
+        "autoParkPointsIndividual": 3.3333333333333335,
+        "autoHivePoints": 3.3333333333333335,
+        "dcHivePoints": 20,
+        "dcFlowerPoints": 0,
+        "dcGardenPoints": 0.8333333333333334,
+        "dcParkPointsIndividual": 5,
+        "tips": 0.8333333333333334,
+        "penaltyPointsCommitted": 0,
+        "autoPoints": 14.833333333333334,
+        "dcPoints": 30,
+        "totalPointsNp": 44.833333333333336
+       },
+       "dev": {
+        "autoLeavePointsIndividual": 1.4142135623730951,
+        "autoParkPointsIndividual": 2.3570226039551585,
+        "autoHivePoints": 7.4535599249993,
+        "dcHivePoints": 9.092121131323903,
+        "dcFlowerPoints": 0,
+        "dcGardenPoints": 0.8975274678557507,
+        "dcParkPointsIndividual": 0,
+        "tips": 0.37267799624996495,
+        "penaltyPointsCommitted": 0,
+        "autoPoints": 10.089873911776873,
+        "dcPoints": 9.91631652042901,
+        "totalPointsNp": 8.95203266799719
+       }
+      }
+     },
+     {
+      "eventCode": "USIACONEM2",
+      "event": {
+       "name": "Coneflower Sioux City",
+       "start": "2026-11-14",
+       "end": "2026-11-14"
+      },
+      "stats": null
+     },
+     {
+      "eventCode": "USIACONEM3",
+      "event": {
+       "name": "Coneflower Hinton",
+       "start": "2026-12-19",
+       "end": "2026-12-19"
+      },
+      "stats": null
+     },
+     {
+      "eventCode": "USIACONEM4",
+      "event": {
+       "name": "Coneflower South Sioux City",
+       "start": "2027-01-09",
+       "end": "2027-01-09"
+      },
+      "stats": null
+     }
+    ]
+   }
+  }
+ }
+}

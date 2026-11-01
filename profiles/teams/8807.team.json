@@ -1,0 +1,890 @@
+{
+ "schema": "gameplan.team-imitation/1",
+ "team": {
+  "number": 8807,
+  "name": "Molten Sprockets"
+ },
+ "source": {
+  "api": "https://api.ftcscout.org/graphql",
+  "season": 2026,
+  "seasonName": "BIOBUZZ 2026-2027",
+  "fetchedAt": "2026-11-01T08:47:19Z",
+  "responseSha256": "b94b5a9a442f7241b608ed60d5fc304ead33fface39c64b5bf6a6de4e32ca76a",
+  "rawResponse": "8807.ftcscout.json",
+  "events": [
+   {
+    "code": "USIACONEM1",
+    "name": "Coneflower Sgt Bluff",
+    "start": "2026-10-24",
+    "qualMatchesPlayed": 6
+   }
+  ],
+  "qualMatchesPlayed": 6
+ },
+ "target": {
+  "method": "FTCScout OPR components, weighted by qualification matches; LEAVE/PARK per robot",
+  "components": {
+   "autoLeavePointsIndividual": 2.0,
+   "autoParkPointsIndividual": 3.333,
+   "autoHivePoints": 1.46,
+   "dcHivePoints": 7.628,
+   "dcFlowerPoints": 0.0,
+   "dcGardenPoints": 0.452,
+   "dcParkPointsIndividual": 5.0,
+   "tips": 0.239,
+   "penaltyPointsCommitted": 0.0,
+   "autoPoints": 8.158,
+   "dcPoints": 12.806,
+   "totalPointsNp": 20.964
+  },
+  "dev": {
+   "autoLeavePointsIndividual": 1.414,
+   "autoParkPointsIndividual": 2.357,
+   "autoHivePoints": 7.454,
+   "dcHivePoints": 9.092,
+   "dcFlowerPoints": 0.0,
+   "dcGardenPoints": 0.898,
+   "dcParkPointsIndividual": 0.0,
+   "tips": 0.373,
+   "penaltyPointsCommitted": 0.0,
+   "autoPoints": 10.09,
+   "dcPoints": 9.916,
+   "totalPointsNp": 8.952
+  }
+ },
+ "ai": {
+  "personality": {
+   "name": "balanced",
+   "aggression": 0.0,
+   "caution": 0.56,
+   "maxSpeedFrac": 0.544,
+   "autoQuality": 0.0,
+   "defense": 0.0,
+   "reactionS": 1.648,
+   "aimSigmaRad": 0.164
+  },
+  "difficulty": 0.239,
+  "weights": {
+   "hive": 0.501,
+   "flower": 3.0,
+   "garden": 2.186
+  }
+ },
+ "calibration": {
+  "method": "imitated robot alone on its alliance (partner idle) vs two default AI opponents; deterministic search, common random seeds",
+  "robot": "examples/robots/generic-launcher.robot.json",
+  "seeds": [
+   1000,
+   1001,
+   1002,
+   1003
+  ],
+  "rounds": 4,
+  "candidatesPerRound": 12,
+  "matches": 192,
+  "objective": 11.7728,
+  "achieved": {
+   "autoLeavePointsIndividual": 3.0,
+   "autoParkPointsIndividual": 0.0,
+   "autoHivePoints": 0.0,
+   "dcHivePoints": 11.0,
+   "dcFlowerPoints": 0.0,
+   "dcGardenPoints": 3.5,
+   "dcParkPointsIndividual": 5.0,
+   "tips": 0.25,
+   "penaltyPointsCommitted": 0.0,
+   "totalPointsNp": 22.5
+  },
+  "standardisedError": {
+   "autoLeavePointsIndividual": 1.0,
+   "autoParkPointsIndividual": -2.828,
+   "autoHivePoints": -0.365,
+   "dcHivePoints": 0.562,
+   "dcFlowerPoints": 0.0,
+   "dcGardenPoints": 1.524,
+   "dcParkPointsIndividual": 0.0,
+   "tips": 0.022,
+   "penaltyPointsCommitted": 0.0
+  },
+  "unreachable": [
+   "autoParkPointsIndividual"
+  ],
+  "history": [
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 1.0,
+     "aggression": 1.0,
+     "caution": 0.0,
+     "maxSpeedFrac": 1.0,
+     "autoQuality": 1.0,
+     "wHive": 2.02,
+     "wFlower": 0.0,
+     "wGarden": 0.0,
+     "reactionS": 0.15,
+     "aimSigmaRad": 0.01
+    },
+    "objective": 1165.1349404647265
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.525,
+     "aggression": 0.5,
+     "caution": 0.5,
+     "maxSpeedFrac": 0.625,
+     "autoQuality": 0.5,
+     "wHive": 1.5999999999999999,
+     "wFlower": 1.5,
+     "wGarden": 1.5,
+     "reactionS": 1.325,
+     "aimSigmaRad": 0.105
+    },
+    "objective": 488.1344708269206
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.14500000000000002,
+     "aggression": 0.3,
+     "caution": 0.7,
+     "maxSpeedFrac": 0.4,
+     "autoQuality": 0.2,
+     "wHive": 1.04,
+     "wFlower": 0.0,
+     "wGarden": 0.6000000000000001,
+     "reactionS": 2.265,
+     "aimSigmaRad": 0.18100000000000002
+    },
+    "objective": 716.5039918027903
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.1196118025792816,
+     "aggression": 0.9143789799222691,
+     "caution": 0.27033855754275604,
+     "maxSpeedFrac": 0.9157585317175344,
+     "autoQuality": 0.3714348310954173,
+     "wHive": 2.9815885595543334,
+     "wFlower": 1.5906608376223985,
+     "wGarden": 2.338936789599342,
+     "reactionS": 1.0373142879711328,
+     "aimSigmaRad": 0.017222609452369534
+    },
+    "objective": 1023.0698067638667
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.16178682148638265,
+     "aggression": 0.048620077752184465,
+     "caution": 0.3324765576970027,
+     "maxSpeedFrac": 0.5724994459036881,
+     "autoQuality": 0.023536022341520302,
+     "wHive": 0.39664604415965343,
+     "wFlower": 2.9189966205170492,
+     "wGarden": 1.3030501079238848,
+     "reactionS": 1.7213843810376335,
+     "aimSigmaRad": 0.11410628030270016
+    },
+    "objective": 16.825045873000043
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.314982508211106,
+     "aggression": 0.8403667308053993,
+     "caution": 0.8148096339443858,
+     "maxSpeedFrac": 0.5861804038087157,
+     "autoQuality": 0.7261267576853815,
+     "wHive": 2.597732231079259,
+     "wFlower": 1.8064676770133685,
+     "wGarden": 1.408108886547087,
+     "reactionS": 2.2352361866308676,
+     "aimSigmaRad": 0.1367451360219018
+    },
+    "objective": 1234.6753427138756
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.46441501622560916,
+     "aggression": 0.04323910884474125,
+     "caution": 0.13943422906562553,
+     "maxSpeedFrac": 0.583177438624938,
+     "autoQuality": 0.8766538852577872,
+     "wHive": 1.1204066060267983,
+     "wFlower": 1.2777488493686437,
+     "wGarden": 0.3630386698922483,
+     "reactionS": 2.0834982938885624,
+     "aimSigmaRad": 0.0630413094820234
+    },
+    "objective": 20.75676075931811
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.5404784395052913,
+     "aggression": 0.977595086114015,
+     "caution": 0.6403567821169903,
+     "maxSpeedFrac": 0.714478564829633,
+     "autoQuality": 0.7156479403539714,
+     "wHive": 2.23575370324788,
+     "wFlower": 1.962338870523002,
+     "wGarden": 1.2752029503603142,
+     "reactionS": 0.2810558691089813,
+     "aimSigmaRad": 0.14087402100360824
+    },
+    "objective": 1627.061134981456
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.6015723692493887,
+     "aggression": 0.8169619959451068,
+     "caution": 0.519052633590881,
+     "maxSpeedFrac": 0.670635894925805,
+     "autoQuality": 0.7935623231770081,
+     "wHive": 0.2843241734432246,
+     "wFlower": 1.784056196349683,
+     "wGarden": 0.42762248830543503,
+     "reactionS": 1.9950597542245645,
+     "aimSigmaRad": 0.10251422105202602
+    },
+    "objective": 818.3086982117243
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.688061093488098,
+     "aggression": 0.8934713310787109,
+     "caution": 0.7551678974078606,
+     "maxSpeedFrac": 0.5650739965461242,
+     "autoQuality": 0.49452387776649354,
+     "wHive": 0.7658457336812672,
+     "wFlower": 2.676424452747453,
+     "wGarden": 0.4101200719058339,
+     "reactionS": 1.3229366818903474,
+     "aimSigmaRad": 0.09503606484471182
+    },
+    "objective": 289.34759680813636
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.8068504577458732,
+     "aggression": 0.8329415365969206,
+     "caution": 0.032479888199961615,
+     "maxSpeedFrac": 0.4478285361369855,
+     "autoQuality": 0.15536155661910778,
+     "wHive": 0.6052136844622111,
+     "wFlower": 2.471184353670234,
+     "wGarden": 0.40349842727830565,
+     "reactionS": 0.24613951566701558,
+     "aimSigmaRad": 0.18203869026571856
+    },
+    "objective": 579.8370711468127
+   },
+   {
+    "round": 0,
+    "params": {
+     "difficulty": 0.9691795560376314,
+     "aggression": 0.09054788343899178,
+     "caution": 0.34770385096728373,
+     "maxSpeedFrac": 0.7841765664822122,
+     "autoQuality": 0.7530878412299188,
+     "wHive": 1.1595665297542175,
+     "wFlower": 2.9672217804130674,
+     "wGarden": 2.2191861154739843,
+     "reactionS": 1.3432660791897968,
+     "aimSigmaRad": 0.05949754700652574
+    },
+    "objective": 421.4307679965319
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.16178682148638265,
+     "aggression": 0.048620077752184465,
+     "caution": 0.3324765576970027,
+     "maxSpeedFrac": 0.5724994459036881,
+     "autoQuality": 0.023536022341520302,
+     "wHive": 0.39664604415965343,
+     "wFlower": 2.9189966205170492,
+     "wGarden": 1.3030501079238848,
+     "reactionS": 1.7213843810376335,
+     "aimSigmaRad": 0.11410628030270016
+    },
+    "objective": 16.825045873000043
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.3827974750702054,
+     "aggression": 0.0,
+     "caution": 0.0,
+     "maxSpeedFrac": 0.8780213495013793,
+     "autoQuality": 0.38583009767029197,
+     "wHive": 0.2,
+     "wFlower": 2.845085420740542,
+     "wGarden": 0.9291562231618353,
+     "reactionS": 2.452511174368036,
+     "aimSigmaRad": 0.08270522038732515
+    },
+    "objective": 23.719081171796656
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.25776895225248997,
+     "aggression": 0.39588228077936183,
+     "caution": 0.0,
+     "maxSpeedFrac": 0.4741853302278531,
+     "autoQuality": 0.0,
+     "wHive": 0.2,
+     "wFlower": 3.0,
+     "wGarden": 0.0,
+     "reactionS": 1.6159545960060384,
+     "aimSigmaRad": 0.2
+    },
+    "objective": 82.64751709703519
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.05,
+     "aggression": 0.0,
+     "caution": 0.5550073291461719,
+     "maxSpeedFrac": 0.7609743249596879,
+     "autoQuality": 0.29759650350600547,
+     "wHive": 0.2,
+     "wFlower": 3.0,
+     "wGarden": 1.792574426895156,
+     "reactionS": 2.2248302786807947,
+     "aimSigmaRad": 0.01
+    },
+    "objective": 3825.3319308345035
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.31401938046344563,
+     "aggression": 0.16651886799857102,
+     "caution": 0.40543263114033773,
+     "maxSpeedFrac": 0.7724628844143309,
+     "autoQuality": 0.0,
+     "wHive": 1.3621256714584944,
+     "wFlower": 1.9522270721417019,
+     "wGarden": 1.0507743307729076,
+     "reactionS": 0.955819667297313,
+     "aimSigmaRad": 0.1257638571109519
+    },
+    "objective": 55.08957261081054
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.48266969355577,
+     "aggression": 0.0,
+     "caution": 0.7406909481331097,
+     "maxSpeedFrac": 0.43459522516730315,
+     "autoQuality": 0.0,
+     "wHive": 0.2,
+     "wFlower": 2.4600594370425566,
+     "wGarden": 2.500403915483442,
+     "reactionS": 2.0820871947165274,
+     "aimSigmaRad": 0.015298479935126747
+    },
+    "objective": 300.18752419597183
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.6564023059075327,
+     "aggression": 0.34308434387743225,
+     "caution": 0.6424219284344304,
+     "maxSpeedFrac": 0.47622411559035294,
+     "autoQuality": 0.0,
+     "wHive": 1.2495210178835876,
+     "wFlower": 3.0,
+     "wGarden": 1.6054311261708512,
+     "reactionS": 2.5,
+     "aimSigmaRad": 0.14392107466059406
+    },
+    "objective": 2043.70037868241
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.11483318080579544,
+     "aggression": 0.7234649398816336,
+     "caution": 0.31456884401062896,
+     "maxSpeedFrac": 0.7103212875941498,
+     "autoQuality": 0.07915526693619962,
+     "wHive": 0.8702210753892186,
+     "wFlower": 1.9421903461754968,
+     "wGarden": 0.12429882193080494,
+     "reactionS": 2.5,
+     "aimSigmaRad": 0.01
+    },
+    "objective": 39.54763795749139
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.05,
+     "aggression": 0.14798682769593993,
+     "caution": 0.0,
+     "maxSpeedFrac": 0.49536465099660654,
+     "autoQuality": 0.4977937509537328,
+     "wHive": 1.1865847082615302,
+     "wFlower": 1.8761480658749647,
+     "wGarden": 0.9574033618879975,
+     "reactionS": 1.9714980203431798,
+     "aimSigmaRad": 0.09700074940452125
+    },
+    "objective": 1245.9457905435427
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.44565424417099664,
+     "aggression": 0.2639394871928986,
+     "caution": 0.37096352063286187,
+     "maxSpeedFrac": 0.9324131284940553,
+     "autoQuality": 0.0,
+     "wHive": 0.2,
+     "wFlower": 3.0,
+     "wGarden": 0.0,
+     "reactionS": 1.5589318126164122,
+     "aimSigmaRad": 0.13590195598857213
+    },
+    "objective": 2347.8715803404857
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.05,
+     "aggression": 0.18104730139260367,
+     "caution": 0.6655535017942666,
+     "maxSpeedFrac": 0.7209686192216372,
+     "autoQuality": 0.0,
+     "wHive": 0.2,
+     "wFlower": 2.6005018014059917,
+     "wGarden": 0.0,
+     "reactionS": 1.6222176047760077,
+     "aimSigmaRad": 0.11386619064886026
+    },
+    "objective": 2042.2500686601293
+   },
+   {
+    "round": 1,
+    "params": {
+     "difficulty": 0.06942097247392844,
+     "aggression": 0.0,
+     "caution": 0.0,
+     "maxSpeedFrac": 0.46941435785299224,
+     "autoQuality": 0.0,
+     "wHive": 0.2,
+     "wFlower": 2.2361307343154877,
+     "wGarden": 0.5693833846020812,
+     "reactionS": 2.5,
+     "aimSigmaRad": 0.07116765364523475
+    },
+    "objective": 818.2536096740291
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.16178682148638265,
+     "aggression": 0.048620077752184465,
+     "caution": 0.3324765576970027,
+     "maxSpeedFrac": 0.5724994459036881,
+     "autoQuality": 0.023536022341520302,
+     "wHive": 0.39664604415965343,
+     "wFlower": 2.9189966205170492,
+     "wGarden": 1.3030501079238848,
+     "reactionS": 1.7213843810376335,
+     "aimSigmaRad": 0.11410628030270016
+    },
+    "objective": 16.825045873000043
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.05,
+     "aggression": 0.12538448647317194,
+     "caution": 0.2939970896440671,
+     "maxSpeedFrac": 0.49511903978372374,
+     "autoQuality": 0.031310810643936204,
+     "wHive": 2.449525303438912,
+     "wFlower": 2.5671748136630894,
+     "wGarden": 1.0611429596142954,
+     "reactionS": 1.3140628888311334,
+     "aimSigmaRad": 0.16348042063390472
+    },
+    "objective": 1234.7465325014227
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.0777679007591315,
+     "aggression": 0.005407794741431361,
+     "caution": 0.3514479313527645,
+     "maxSpeedFrac": 0.5301956481237016,
+     "autoQuality": 0.0,
+     "wHive": 1.1875771468232414,
+     "wFlower": 3.0,
+     "wGarden": 1.6543108712436547,
+     "reactionS": 1.152553544168299,
+     "aimSigmaRad": 0.10964999938813955
+    },
+    "objective": 2197.8747836897815
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.05,
+     "aggression": 0.04996572385693241,
+     "caution": 0.5097006428189578,
+     "maxSpeedFrac": 0.5625836422340533,
+     "autoQuality": 0.0,
+     "wHive": 0.6616499570810721,
+     "wFlower": 1.9328574326365888,
+     "wGarden": 0.883052155857639,
+     "reactionS": 1.5125699536421144,
+     "aimSigmaRad": 0.13597088340517852
+    },
+    "objective": 1613.5870933132348
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.2242801343738079,
+     "aggression": 0.39284598829932754,
+     "caution": 0.3341488063247911,
+     "maxSpeedFrac": 0.38701180290905146,
+     "autoQuality": 0.0,
+     "wHive": 0.8041980177599415,
+     "wFlower": 2.537566636914012,
+     "wGarden": 1.4159407358852623,
+     "reactionS": 1.0897924126215657,
+     "aimSigmaRad": 0.14261562614465156
+    },
+    "objective": 1755.385362334797
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.08417852670288278,
+     "aggression": 0.029621660278079207,
+     "caution": 0.4785892006551236,
+     "maxSpeedFrac": 0.6817959376267057,
+     "autoQuality": 0.049999355135484716,
+     "wHive": 0.2,
+     "wFlower": 1.8796989343392385,
+     "wGarden": 2.044018710526121,
+     "reactionS": 2.0458108956292373,
+     "aimSigmaRad": 0.14026767072585172
+    },
+    "objective": 816.9641807458861
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.23946581702303854,
+     "aggression": 0.0,
+     "caution": 0.5595644043285454,
+     "maxSpeedFrac": 0.5438991756796441,
+     "autoQuality": 0.0,
+     "wHive": 0.5008359322607738,
+     "wFlower": 3.0,
+     "wGarden": 2.186312232233787,
+     "reactionS": 1.6477659219017007,
+     "aimSigmaRad": 0.16399627759722415
+    },
+    "objective": 11.772758656087353
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.37222041905622094,
+     "aggression": 0.16383016055653732,
+     "caution": 0.03749175762847773,
+     "maxSpeedFrac": 0.7034953162391218,
+     "autoQuality": 0.11165282613832025,
+     "wHive": 0.6393301923631538,
+     "wFlower": 2.443114487308254,
+     "wGarden": 1.9466154376392817,
+     "reactionS": 1.6157956359432304,
+     "aimSigmaRad": 0.13142903270963652
+    },
+    "objective": 26.19590717428305
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.05,
+     "aggression": 0.0,
+     "caution": 0.45412835892728837,
+     "maxSpeedFrac": 0.5476633440782802,
+     "autoQuality": 0.06437194766336987,
+     "wHive": 0.7846588030396073,
+     "wFlower": 2.8753624541324436,
+     "wGarden": 1.7112806119556367,
+     "reactionS": 2.1414823045548985,
+     "aimSigmaRad": 0.12046647569865274
+    },
+    "objective": 2188.7739878285674
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.1283179325172643,
+     "aggression": 0.17412019327764172,
+     "caution": 0.2876724971566375,
+     "maxSpeedFrac": 0.34420859549290284,
+     "autoQuality": 0.4201837467155636,
+     "wHive": 0.2,
+     "wFlower": 3.0,
+     "wGarden": 2.7995545737709007,
+     "reactionS": 1.829752467993701,
+     "aimSigmaRad": 0.06141753689316189
+    },
+    "objective": 914.6754231780299
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.20495545468164994,
+     "aggression": 0.08407183047191583,
+     "caution": 0.7100850770516461,
+     "maxSpeedFrac": 0.5253300619899722,
+     "autoQuality": 0.1291211636154152,
+     "wHive": 0.20941155049215468,
+     "wFlower": 1.4216516600692177,
+     "wGarden": 0.0,
+     "reactionS": 1.4629595230499268,
+     "aimSigmaRad": 0.11698431684279315
+    },
+    "objective": 413.42588577094534
+   },
+   {
+    "round": 2,
+    "params": {
+     "difficulty": 0.22832100502766012,
+     "aggression": 0.027930509186478665,
+     "caution": 0.4371495128102723,
+     "maxSpeedFrac": 0.5672220419056923,
+     "autoQuality": 0.0,
+     "wHive": 0.9883183252801959,
+     "wFlower": 2.8072921132822524,
+     "wGarden": 2.160615246208608,
+     "reactionS": 1.0423656818400615,
+     "aimSigmaRad": 0.13097199713341182
+    },
+    "objective": 1755.0345537510661
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.23946581702303854,
+     "aggression": 0.0,
+     "caution": 0.5595644043285454,
+     "maxSpeedFrac": 0.5438991756796441,
+     "autoQuality": 0.0,
+     "wHive": 0.5008359322607738,
+     "wFlower": 3.0,
+     "wGarden": 2.186312232233787,
+     "reactionS": 1.6477659219017007,
+     "aimSigmaRad": 0.16399627759722415
+    },
+    "objective": 11.772758656087353
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.36064577298465006,
+     "aggression": 0.09398228747510182,
+     "caution": 0.5054900206477504,
+     "maxSpeedFrac": 0.5924920445479367,
+     "autoQuality": 0.0,
+     "wHive": 0.2482744431656541,
+     "wFlower": 3.0,
+     "wGarden": 2.3075652152365396,
+     "reactionS": 1.5005663098694264,
+     "aimSigmaRad": 0.1303095098730077
+    },
+    "objective": 20.859805770695083
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.3463313847048656,
+     "aggression": 0.14823683673314475,
+     "caution": 0.5691923725262014,
+     "maxSpeedFrac": 0.6036499004586477,
+     "autoQuality": 0.0,
+     "wHive": 0.5626333435440591,
+     "wFlower": 2.5402398998433005,
+     "wGarden": 1.7201329301608683,
+     "reactionS": 1.5067009036353176,
+     "aimSigmaRad": 0.16447980975065396
+    },
+    "objective": 188.1993965467892
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.47298049509233187,
+     "aggression": 0.0,
+     "caution": 0.5493108020808699,
+     "maxSpeedFrac": 0.43508264990607004,
+     "autoQuality": 0.0,
+     "wHive": 0.9223135269007372,
+     "wFlower": 3.0,
+     "wGarden": 2.3933361466814453,
+     "reactionS": 1.6640752443603644,
+     "aimSigmaRad": 0.18112746664961166
+    },
+    "objective": 294.2191671137583
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.31684391321172617,
+     "aggression": 0.11398664861261569,
+     "caution": 0.6770676332826918,
+     "maxSpeedFrac": 0.5847649665227772,
+     "autoQuality": 0.06317773283352952,
+     "wHive": 0.5116313774920557,
+     "wFlower": 3.0,
+     "wGarden": 1.5954446962399258,
+     "reactionS": 1.5108086439673323,
+     "aimSigmaRad": 0.2
+    },
+    "objective": 1885.3044809851665
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.328154617306254,
+     "aggression": 0.0,
+     "caution": 0.49034535721633776,
+     "maxSpeedFrac": 0.5021387598518308,
+     "autoQuality": 0.016297295018501315,
+     "wHive": 0.23925583376824108,
+     "wFlower": 2.6348279261158805,
+     "wGarden": 1.9544389120336911,
+     "reactionS": 1.8229402252237983,
+     "aimSigmaRad": 0.18353122387623755
+    },
+    "objective": 2344.0741071486746
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.34347495333447564,
+     "aggression": 0.09431912019555776,
+     "caution": 0.6090311680452467,
+     "maxSpeedFrac": 0.5684685404966678,
+     "autoQuality": 0.0,
+     "wHive": 0.5362560990902925,
+     "wFlower": 2.9294817356938783,
+     "wGarden": 2.128712635191743,
+     "reactionS": 1.7512053648421362,
+     "aimSigmaRad": 0.16330003983989652
+    },
+    "objective": 2216.2152117734313
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.20757687940259933,
+     "aggression": 0.0,
+     "caution": 0.40988023058689443,
+     "maxSpeedFrac": 0.5297509799440948,
+     "autoQuality": 0.0,
+     "wHive": 0.2,
+     "wFlower": 3.0,
+     "wGarden": 2.004593956750271,
+     "reactionS": 2.073496739942941,
+     "aimSigmaRad": 0.15225743576361275
+    },
+    "objective": 113.37747280476893
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.17282118702256447,
+     "aggression": 0.12067252345501985,
+     "caution": 0.45165110031251965,
+     "maxSpeedFrac": 0.5486731132478474,
+     "autoQuality": 0.1442309768136934,
+     "wHive": 0.5212324528811394,
+     "wFlower": 3.0,
+     "wGarden": 2.299171391849846,
+     "reactionS": 1.4303518595965656,
+     "aimSigmaRad": 0.19421290291320376
+    },
+    "objective": 3219.293254324817
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.24148856447180495,
+     "aggression": 0.0,
+     "caution": 0.7475625925634364,
+     "maxSpeedFrac": 0.4425930311075349,
+     "autoQuality": 0.0,
+     "wHive": 0.6530343548973586,
+     "wFlower": 2.590891007851786,
+     "wGarden": 2.173733706292027,
+     "reactionS": 1.5348774479738883,
+     "aimSigmaRad": 0.132389038686099
+    },
+    "objective": 1891.8530652098302
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.36437722228787467,
+     "aggression": 0.037556173820059074,
+     "caution": 0.5187847465188985,
+     "maxSpeedFrac": 0.5445801742156768,
+     "autoQuality": 0.0,
+     "wHive": 0.7313946736575145,
+     "wFlower": 3.0,
+     "wGarden": 2.2159349976013103,
+     "reactionS": 1.4071231606102783,
+     "aimSigmaRad": 0.15003963736805526
+    },
+    "objective": 5389.496144634017
+   },
+   {
+    "round": 3,
+    "params": {
+     "difficulty": 0.12539789520545228,
+     "aggression": 0.10670774487652106,
+     "caution": 0.5597891994798124,
+     "maxSpeedFrac": 0.4681561359274046,
+     "autoQuality": 0.0,
+     "wHive": 0.8130242593577421,
+     "wFlower": 3.0,
+     "wGarden": 2.4412429701585903,
+     "reactionS": 1.7150036726620568,
+     "aimSigmaRad": 0.14090854002421066
+    },
+    "objective": 115.4715399441835
+   }
+  ]
+ },
+ "limitations": [
+  "Imitates the scoring profile (points of each kind contributed), not the team's mechanisms or strategy, which FTCScout does not record.",
+  "OPR is a least-squares estimate; with few matches it is noisy (see target.dev).",
+  "Calibrated with the generic launcher robot description; another robot description changes what the same AI parameters achieve.",
+  "Defense is not calibrated (OPR does not measure it) and is set to 0.",
+  "Components the simulated robot could not match within 2 standard errors: autoParkPointsIndividual"
+ ]
+}

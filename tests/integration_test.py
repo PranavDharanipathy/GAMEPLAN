@@ -100,5 +100,19 @@ t5 = tel_of("m5") if r5.returncode == 0 else {}
 check("AprilTag custom library: same tags as singles with pose, no clusters",
       r5.returncode == 0 and int(t5.get("singlesWithPose", 0)) > 50 and int(t5.get("clusters", 1)) == 0, str(t5))
 
+# FTCScout team imitation, offline from the committed raw response (tiny budget), then a match using it
+prof = os.path.join(OUT, "8807.team.json")
+r6 = run([sys.executable, "tools/ftcscout_imitate.py", "8807", "--from-cache", "profiles/teams/8807.ftcscout.json",
+          "--rounds", "1", "--candidates", "3", "--seeds", "1", "--out", prof], timeout=900)
+ok6 = r6.returncode == 0 and os.path.exists(prof)
+p6 = json.load(open(prof)) if ok6 else {}
+check("FTCScout imitation profile (offline cache)", ok6 and p6["source"]["qualMatchesPlayed"] > 0 and "achieved" in p6["calibration"], r6.stdout[-800:] + r6.stderr[-800:])
+mm = json.load(open(os.path.join(ROOT, "examples", "matches", "ai-vs-ai.match.json")))
+mm["robots"][0]["ai"] = {"imitate": prof}
+json.dump(mm, open(os.path.join(OUT, "imit.match.json"), "w"))
+r7 = run([EXE, "run", os.path.join(OUT, "imit.match.json"), "--record", os.path.join(OUT, "m7")], timeout=900)
+hdr = json.load(open(os.path.join(OUT, "m7", "header.json"))) if r7.returncode == 0 else {}
+check("match uses the imitation profile (hash recorded)", r7.returncode == 0 and "imitationProfileSha256" in json.dumps(hdr), r7.stderr[-800:])
+
 print("\n%d failure(s)" % len(fails))
 sys.exit(1 if fails else 0)

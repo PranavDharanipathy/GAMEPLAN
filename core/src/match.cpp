@@ -135,10 +135,20 @@ MatchSetup MatchSetup::fromJson(const Json& j, const std::string& base) {
         re.autoOpMode = rr["auto"].str("");
         re.teleOpMode = rr["teleop"].str("");
         re.gamepadScript = rr["gamepadScript"].isString() ? resolvePath(rr["gamepadScript"].str(), base) : "";
-        const Json& ai = r["ai"];
+        Json ai = r["ai"];
+        if (ai["imitate"].isString()) {
+            // calibrated team imitation profile: its "ai" block supplies personality, difficulty and
+            // weights; fields given in the match file still win (e.g. an extra instruction)
+            re.imitation = resolvePath(ai["imitate"].str(), base);
+            Json prof = Json::parse(readTextFile(re.imitation));
+            Json merged = prof["ai"];
+            for (auto& kv : ai.members()) if (kv.first != "imitate") merged.set(kv.first, kv.second);
+            ai = merged;
+        }
         re.personality = ai["personality"].isObject() ? Personality::fromJson(ai["personality"]) : Personality::preset(ai["personality"].str("balanced"));
         re.difficulty = ai["difficulty"].num(0.6);
         re.instruction = ai["instruction"].str("");
+        re.weights = ai["weights"];
         s.robots.push_back(re);
     }
     return s;
@@ -239,7 +249,14 @@ bool MatchRunner::begin(std::string& err) {
         perAlliance[int(re.alliance)]++;
         std::shared_ptr<AIController> ai;
         if (re.controller == "ai") {
-            ai = std::make_shared<AIController>(re.personality, re.difficulty, StrategyDirectives::parse(re.instruction), setup_.world.seed, re.label);
+            StrategyDirectives sd = StrategyDirectives::parse(re.instruction);
+            if (re.weights.isObject()) {   // explicit weights (calibrated imitation) multiply the parsed ones
+                sd.wPollen *= re.weights["pollen"].num(1.0);
+                sd.wHive *= re.weights["hive"].num(1.0);
+                sd.wFlower *= re.weights["flower"].num(1.0);
+                sd.wGarden *= re.weights["garden"].num(1.0);
+            }
+            ai = std::make_shared<AIController>(re.personality, re.difficulty, sd, setup_.world.seed, re.label);
         }
         int idx = world_->addRobot(rc, re.alliance, re.label, st, re.controller == "runtime", ai);
         // experimental overrides from the robot description (flagged by the legality checker)
@@ -340,6 +357,10 @@ bool MatchRunner::begin(std::string& err) {
                 o.set("teleOpMode", setup_.robots[i].teleOpMode);
             }
             if (world_->robots()[i].ai) o.set("ai", world_->robots()[i].ai->describe());
+            if (!setup_.robots[i].imitation.empty()) {
+                o.set("imitationProfile", setup_.robots[i].imitation);
+                o.set("imitationProfileSha256", sha256Hex(readTextFile(setup_.robots[i].imitation)));
+            }
             rs.push(o);
         }
         h.set("robots", rs);
