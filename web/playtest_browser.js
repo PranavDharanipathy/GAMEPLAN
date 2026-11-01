@@ -1,47 +1,78 @@
+// Browser playtest of the full app (serve build-web/site on :8765): menus, settings, a match driven with
+// the keyboard, pause / leave, the end-of-match flow, touch controls on a phone, and menu/match control
+// with a (simulated) gamepad.
+// Usage: node web/playtest_browser.js <screenshot dir>
 const { chromium, devices } = require('playwright');
 const out = process.argv[2];
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const errs = [];
+  const visible = (p, id) => p.$eval('#' + id, (e) => !e.hidden);
   // ---------- desktop, keyboard ----------
   let p = await b.newPage({ viewport: { width: 960, height: 540 } });
   p.on('pageerror', (e) => errs.push('desktop: ' + e.message));
+  await p.addInitScript(() => { window.__gpPause = true; });   // frames are stepped by the test (software GL is slow)
   await p.goto('http://localhost:8765/index.html');
-  await p.waitForFunction(() => !document.getElementById('startBtn').disabled, null, { timeout: 60000 });
-  await p.selectOption('#gfx', 'balanced');
+  await p.waitForFunction(() => window.__gp && window.__gp.ready(), null, { timeout: 180000, polling: 500 });
+  console.log('main menu shown, AI match behind it:', await visible(p, 'scr-menu'), await p.evaluate(() => window.__gp.state.match));
+  // settings: preset, a toggle, a key rebind, persisted
+  await p.click('#scr-menu [data-go="settings"]');
+  await p.selectOption('#set-preset', 'balanced');
+  console.log('preset balanced applies:', await p.evaluate(() => ({ preset: window.__gp.settings.preset, ao: window.__gp.settings.ao, shadows: window.__gp.settings.shadowLights })));
+  await p.click('#setTab2');
+  await p.click('#setPanel .kb');          // Drive forward, first key
+  await p.keyboard.press('KeyT');
+  console.log('rebind forward to T:', await p.evaluate(() => window.__gp.settings.binds.forward.join(',')), 'saved:', await p.evaluate(() => JSON.parse(localStorage.getItem('gp.settings.v1')).binds.forward[0]));
+  await p.click('#scr-settings [data-back]');
+  // competition match from the setup screen
+  await p.click('#mPlay');
   await p.click('#startBtn');
-  await p.evaluate(() => { window.__gpPause = true; window.__gp.advance(5); });
+  await p.waitForFunction(() => window.__gp.state.running, null, { timeout: 60000, polling: 500 });
+  await p.evaluate(() => window.__gp.advance(5));
   console.log('competition AUTO hint:', await p.$eval('#hint', (e) => !e.hidden && e.textContent.slice(0, 60)));
   await p.keyboard.press('Escape');
-  console.log('Esc leaves match:', await p.evaluate(() => !document.getElementById('setup').hidden && !window.__gp.state.running));
-  await p.click('#mPrac'); await p.click('#startBtn');
-  await p.waitForFunction(() => window.__gp.state.running, null, { timeout: 60000 });
-  await p.evaluate(() => { window.__gpPause = true; window.__gp.advance(3.5); });
+  console.log('Esc pauses (menu shown, sim frozen):', await p.evaluate(() => window.__gp.state.paused && window.__gp.ui.top() === 'pause'));
+  await p.keyboard.press('Escape');
+  console.log('Esc again resumes:', await p.evaluate(() => !window.__gp.state.paused && !window.__gp.ui.top()));
+  await p.click('#pauseBtn'); await p.click('#pLeave');
+  console.log('Leave match -> main menu:', await visible(p, 'scr-menu'), !(await p.evaluate(() => window.__gp.state.running)));
+  // practice match: drive with the rebound key, shoot
+  await p.click('#mPlay'); await p.click('#mPrac'); await p.click('#startBtn');
+  await p.waitForFunction(() => window.__gp.state.running && window.__gp.state.mode === 'practice', null, { timeout: 60000, polling: 500 });
+  await p.evaluate(() => window.__gp.advance(3.5));
   const pos = () => p.evaluate(() => { const f = window.__gp.state.sim.frame(); return [f[7], f[8], f[9], f[7 + 17]]; });
   const p0 = await pos();
-  await p.keyboard.down('KeyW'); await p.evaluate(() => window.__gp.advance(1.5)); await p.keyboard.up('KeyW');
+  await p.keyboard.down('KeyT'); await p.evaluate(() => window.__gp.advance(1.5)); await p.keyboard.up('KeyT');
   const p1 = await pos();
-  console.log('W drives the robot (m):', Math.hypot(p1[0] - p0[0], p1[1] - p0[1]).toFixed(2));
+  console.log('T (rebound) drives the robot (m):', Math.hypot(p1[0] - p0[0], p1[1] - p0[1]).toFixed(2));
   await p.keyboard.down('Space'); await p.evaluate(() => window.__gp.advance(3));
   const ledSeen = await p.evaluate(() => window.__gp.robots[0].led.material.emissive.getHexString());
-  console.log('shooter LED while Space held (status, colour):', (await pos())[3], ledSeen);
+  console.log('shooter LED / robot HUD while Space held:', (await pos())[3], ledSeen, await p.$eval('#rhState', (e) => e.textContent));
   await p.keyboard.up('Space');
   await p.evaluate(() => window.__gp.renderFrame(true));
   await p.screenshot({ path: out + '/desktop_play.png', timeout: 180000 });
-  // play the rest of the match out and check the end of match flow
+  // play the rest of the match out: final banner, then the report with Play again
   await p.evaluate(() => window.__gp.advance(170));
-  console.log('match ends with report toast:', await p.evaluate(() => !document.getElementById('toast').hidden && !window.__gp.state.running));
+  console.log('final buzzer banner:', await visible(p, 'finalBanner'), !(await p.evaluate(() => window.__gp.state.running)));
+  await p.waitForFunction(() => window.__gp.ui.top() === 'report', null, { timeout: 15000, polling: 250 });
+  console.log('report opens:', await visible(p, 'scr-report'), await p.$eval('#reportBody h1', (e) => e.textContent));
+  await p.screenshot({ path: out + '/desktop_report.png', timeout: 180000 });
+  await p.click('#rAgain');
+  await p.waitForFunction(() => window.__gp.state.running, null, { timeout: 60000, polling: 500 });
+  console.log('Play again starts the next seed:', await p.evaluate(() => window.__gp.state.setup.seed));
   await p.close();
   // ---------- phone, touch ----------
   const ctx = await b.newContext({ ...devices['Pixel 7'], deviceScaleFactor: 1 });
   p = await ctx.newPage();
   p.on('pageerror', (e) => errs.push('phone: ' + e.message));
+  await p.addInitScript(() => { window.__gpPause = true; });
   await p.goto('http://localhost:8765/index.html');
-  await p.waitForFunction(() => !document.getElementById('startBtn').disabled, null, { timeout: 60000 });
-  await p.selectOption('#gfx', 'balanced');
-  await p.evaluate(() => { window.__gpPause = true; document.getElementById('mPrac').click(); document.getElementById('startBtn').click(); });
-  await p.waitForTimeout(1500);
-  await p.evaluate(() => { window.__gpPause = true; window.__gp.advance(3.5); });
+  await p.waitForFunction(() => window.__gp && window.__gp.ready(), null, { timeout: 180000, polling: 500 });
+  await p.evaluate(() => window.__gp.setSetting('preset', 'low'));
+  await p.screenshot({ path: out + '/phone_menu.png', timeout: 180000 });
+  await p.tap('#mQuick');
+  await p.waitForFunction(() => window.__gp.state.running, null, { timeout: 60000, polling: 500 });
+  await p.evaluate(() => window.__gp.advance(3.5));
   console.log('touch controls visible:', await p.$eval('#touch', (e) => !e.hidden));
   const q0 = await p.evaluate(() => { const f = window.__gp.state.sim.frame(); return [f[7], f[8]]; });
   const box = await p.$eval('#stickL', (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
@@ -52,8 +83,36 @@ const out = process.argv[2];
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   const q1 = await p.evaluate(() => { const f = window.__gp.state.sim.frame(); return [f[7], f[8]]; });
   console.log('touch stick drives the robot (m):', Math.hypot(q1[0] - q0[0], q1[1] - q0[1]).toFixed(2));
+  await p.tap('#pauseBtn');
+  console.log('pause button on touch:', await p.evaluate(() => window.__gp.ui.top() === 'pause'));
+  await p.tap('#pResume');
   await p.evaluate(() => window.__gp.renderFrame(true));
   await p.screenshot({ path: out + '/phone_play.png', timeout: 180000 });
+  await ctx.close();
+  // ---------- gamepad (a simulated controller: navigator.getGamepads stubbed) ----------
+  p = await b.newPage({ viewport: { width: 960, height: 540 } });
+  p.on('pageerror', (e) => errs.push('gamepad: ' + e.message));
+  await p.addInitScript(() => {
+    window.__gpPause = true;
+    const pad = { id: 'Test pad', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+    window.__pad = pad; navigator.getGamepads = () => [pad];
+  });
+  await p.goto('http://localhost:8765/index.html');
+  await p.waitForFunction(() => window.__gp && window.__gp.ready(), null, { timeout: 180000, polling: 500 });
+  const press = (i) => p.evaluate((i) => { window.__pad.buttons[i].pressed = true; window.__gpPoll(0.016); window.__pad.buttons[i].pressed = false; window.__gpPoll(0.016); }, i);
+  const focused = () => p.evaluate(() => document.activeElement && document.activeElement.id);
+  await press(13); await press(13);
+  console.log('d-pad moves menu focus, A opens:', await focused(), await (async () => { await press(0); return p.evaluate(() => window.__gp.ui.top()); })());
+  await press(15); const tab = await p.evaluate(() => document.activeElement.textContent);
+  await press(1);
+  console.log('d-pad right switches settings tab, B goes back:', tab, await p.evaluate(() => window.__gp.ui.top()));
+  await p.evaluate(() => document.getElementById('mQuick').focus()); await press(0);
+  await p.waitForFunction(() => window.__gp.state.running, null, { timeout: 60000, polling: 500 });
+  await press(9); const paused = await p.evaluate(() => window.__gp.ui.top());
+  await press(9);
+  console.log('Start pauses and resumes:', paused, await p.evaluate(() => !window.__gp.state.paused));
+  await p.evaluate(() => { window.__gp.advance(3.5); window.__pad.axes[1] = -1; window.__gp.advance(1.0); window.__pad.axes[1] = 0; });
+  console.log('left stick drives, hint names the pad button:', await p.evaluate(() => window.__gp.state.sim.frame()[7].toFixed(2)), await p.$eval('#hint', (e) => e.textContent.slice(0, 20)));
   console.log('page errors:', errs.length ? errs : 'none');
   await b.close();
 })();

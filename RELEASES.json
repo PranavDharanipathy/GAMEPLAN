@@ -3,6 +3,18 @@
   "note": "Newest first. tools/release.py publishes the first entry as the live 'latest' record that running apps watch.",
   "releases": [
     {
+      "version": "0.8.0",
+      "date": "2026-11-01",
+      "required": false,
+      "notes": [
+        "Clear HIVE: the polycarbonate skins are see-through like the real ones, with reflections at an angle",
+        "A real game menu: a live AI match plays behind the main menu; match setup, pause menu (Esc / Start), and a results screen with Play again",
+        "Settings, saved in your browser: graphics presets and options, camera, rebindable keys, volumes, auto-aim on/off, accessibility",
+        "Better, more accurate graphics: soft shadows from the light rig, the official CAD colour on every field part, AprilTags on the HIVE, detailed robots with mecanum wheels and a hooded shooter",
+        "Robot sounds, a status strip with the shooter light and the balls you hold, and much faster rendering"
+      ]
+    },
+    {
       "version": "0.7.0",
       "date": "2026-11-01",
       "required": false,

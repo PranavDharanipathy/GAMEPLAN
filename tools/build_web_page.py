@@ -5,7 +5,11 @@ import json, os, shutil
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 rd = lambda p: open(os.path.join(root, p), encoding="utf-8").read()
 safe = lambda s: s.replace("</", "<\\/")
-page = rd("web/index.template.html").replace("/*RENDERER*/", rd("web/app.part.html"))
+# the app's JavaScript lives in web/app/*.js, concatenated in name order into one module
+app_dir = os.path.join(root, "web", "app")
+app_js = "\n".join("// ---- web/app/%s ----\n%s" % (f, rd(os.path.join("web", "app", f)))
+                    for f in sorted(os.listdir(app_dir)) if f.endswith(".js"))
+page = rd("web/index.template.html").replace("/*RENDERER*/", rd("web/app.part.html").replace("/*APP_JS*/", app_js))
 page = page.replace("/*SEASON_JSON*/", safe(json.dumps(json.loads(rd("seasons/biobuzz-2027/season.json")), separators=(",", ":"))))
 page = page.replace("/*COMPONENTS_JSON*/", safe(json.dumps(json.loads(rd("data/hardware/components.json")), separators=(",", ":"))))
 page = page.replace("/*ROBOT_JSON*/", safe(json.dumps(json.loads(rd("examples/robots/generic-launcher.robot.json")), separators=(",", ":"))))
@@ -13,8 +17,11 @@ page = page.replace("/*WASM_LOADER*/", safe(rd("web/gameplan-wasm.js")))
 import datetime, subprocess
 try: commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=root, capture_output=True, text=True).stdout.strip()
 except Exception: commit = ""
-build = {"version": rd("VERSION").strip(), "built": datetime.date.today().isoformat(), "commit": commit}
-page = page.replace("/*BUILD_INFO*/", json.dumps(build))
+build = {"version": rd("VERSION").strip(), "built": datetime.date.today().isoformat(), "commit": commit, "notes": []}
+rel = json.loads(rd("RELEASES.json")).get("releases", [])
+if rel and rel[0].get("version") == build["version"]:
+    build["notes"] = rel[0].get("notes", [])   # "What's new" in About
+page = page.replace("/*BUILD_INFO*/", safe(json.dumps(build)))
 page = page.replace("/*TAG_JSON*/", safe(rd("web/apriltag36h11_30_45.json")))
 cc = os.path.join(root, "assets", "field", "cad_colors.json")
 page = page.replace("/*CAD_COLOR_JSON*/", safe(open(cc).read()) if os.path.exists(cc) else "{}")

@@ -21,6 +21,7 @@ PR or branch), [BUILD_RULES.md](BUILD_RULES.md)
 | `data/hardware/` | Component library (motors, gearboxes, servos, batteries, hubs) and SDK call timing profile | JSON |
 | `examples/` | Robot descriptions, match setups, gamepad scripts, experiments | JSON |
 | `unreal/GamePlan/` | Unreal Engine project + `GamePlanSim` plugin embedding the core | C++ (UE) |
+| `apps/web/`, `web/` | Browser app: WASM entry points (`apps/web/gp_web.cpp`), page and styles (`web/index.template.html`), app modules `web/app/*.js` (renderer, materials, field, robots, view, input, audio, matches, menus, updates; concatenated in name order into one module by `tools/build_web_page.py`), browser tests `web/*.js` | C++ / JS |
 | `tests/integration_test.py` | End-to-end tests (Java runtime in the loop) | Python (stdlib) |
 
 ## Architectural principles (non-negotiable)

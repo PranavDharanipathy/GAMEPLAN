@@ -3,12 +3,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one-screen arena. Full-bleed 3D field from the driver's spot; scoreboard strip on top;
-   pre-match and post-match panels slide over the field. Single dark "arena under lights" look. */
+/* One-screen game: the 3D arena fills the window. Menus are overlays on top of it (an AI match plays
+   behind the main menu); during a match only the scoreboard, robot status and controls hint remain.
+   A single dark "arena under lights" look, on purpose. */
 :root {
   --bg: #0d1013;          /* arena floor beyond the field */
   --panel: #161b20;
   --panel-2: #1d242b;
+  --panel-3: #232b33;
   --line: #2b343d;
   --fg: #e9ecef;
   --muted: #8e9aa5;
@@ -17,17 +19,35 @@
   --blue: #3b82e6;
   --ok: #4fbf7a;
   --warn: #f0a33a;
+  --scrim: rgba(8, 10, 12, .74);
   --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --ui-scale: 1; --hud-scale: 1;
   color-scheme: dark;
 }
+body.hc { --panel: #0b0d10; --panel-2: #14181d; --line: #5b6875; --muted: #c3ccd4; --scrim: rgba(0, 0, 0, .88); --red: #ff5a4d; --blue: #5d9bff; }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
-body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; overflow: hidden; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; overflow: hidden; -webkit-font-smoothing: antialiased; }
 #app { position: relative; height: 100%; }
-#view { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
-.hud { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+#view { position: absolute; inset: 0; display: block; width: 100%; height: 100%; outline: none; }
+button { font: 600 14px var(--font-body); color: var(--bg); background: var(--pollen); border: 0; border-radius: 4px; padding: 9px 16px; cursor: pointer; }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button.ghost:hover { border-color: var(--muted); }
+button:disabled { opacity: .5; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, canvas:focus-visible, [role="tab"]:focus-visible { outline: 2px solid var(--pollen); outline-offset: 2px; }
+body.pad-nav :focus { outline: 2px solid var(--pollen); outline-offset: 2px; }
+h1 { font-family: var(--font-display); font-size: 34px; font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 span { color: var(--pollen); }
+h2 { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin: 0; letter-spacing: .02em; }
+h3 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); margin: 0; max-width: 62ch; line-height: 1.5; }
+.tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; vertical-align: middle; }
+kbd { font-family: var(--font-mono); font-size: 12px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; background: var(--panel-2); color: var(--fg); white-space: nowrap; }
+
+/* ---------- in-match HUD ---------- */
+.hud { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%) scale(var(--hud-scale)); transform-origin: top center;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 6px 18px;
   background: rgba(13,16,19,.78); border: 1px solid var(--line); border-radius: 6px; font-family: var(--font-display); pointer-events: none; }
 .hud .score { font-size: 38px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 2.6ch; text-align: center; }
@@ -39,13 +59,30 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
   font-family: var(--font-display); font-size: 15px; letter-spacing: .08em; text-transform: uppercase; display: flex; gap: 8px; align-items: center; pointer-events: none; }
 .conn i { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); display: inline-block; }
 .conn.bad i { background: var(--warn); }
-.keys { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
-  font-family: var(--font-mono); font-size: 11px; color: var(--muted); background: rgba(13,16,19,.7); padding: 6px 9px; border-radius: 4px; max-width: calc(100% - 32px); }
-.viewbtns { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 8px; }
+.fps { position: absolute; top: calc(40px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); font-family: var(--font-mono); font-size: 11px; color: var(--muted); pointer-events: none; }
+.robothud { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) scale(var(--hud-scale)); transform-origin: bottom center;
+  display: flex; gap: 12px; align-items: center; padding: 6px 12px; background: rgba(13,16,19,.78); border: 1px solid var(--line); border-radius: 6px;
+  font-family: var(--font-display); font-size: 15px; letter-spacing: .06em; text-transform: uppercase; pointer-events: none; }
+.robothud .led { width: 10px; height: 10px; border-radius: 50%; background: #3a3f45; }
+.robothud .led.busy { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+.robothud .led.ok { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+.robothud .balls { display: flex; gap: 4px; }
+.robothud .balls i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid #6b7480; }
+.robothud .balls i.on { background: var(--pollen); border-color: var(--pollen); }
+.keys { position: absolute; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted); background: rgba(13,16,19,.7); padding: 6px 9px; border-radius: 4px; max-width: calc(100% - 32px); pointer-events: none; }
+.viewbtns { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 8px; }
+.viewbtns button { padding: 7px 12px; background: rgba(13,16,19,.7); }
 .hint { position: absolute; top: calc(92px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
-  background: rgba(13,16,19,.8); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; font-size: 13px; color: var(--fg); text-align: center; pointer-events: none; }
-.note2 { position: absolute; top: calc(92px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); font-size: 12px; color: var(--muted);
-  background: rgba(13,16,19,.8); border-radius: 4px; padding: 6px 10px; pointer-events: none; }
+  background: rgba(13,16,19,.82); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; font-size: 13px; color: var(--fg); text-align: center; pointer-events: none; }
+.note2 { position: absolute; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); font-size: 12.5px; color: var(--fg);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; max-width: min(380px, calc(100% - 32px)); z-index: 30; }
+.final { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.final .box { text-align: center; background: rgba(13,16,19,.86); border: 1px solid var(--line); border-radius: 10px; padding: 18px 34px; font-family: var(--font-display); }
+.final .word { font-size: 18px; letter-spacing: .3em; text-transform: uppercase; color: var(--muted); }
+.final .nums { font-size: 72px; font-weight: 700; display: flex; gap: 22px; align-items: baseline; justify-content: center; line-height: 1.05; }
+.final .nums .r { color: var(--red); } .final .nums .b { color: var(--blue); } .final .nums .vs { font-size: 26px; color: var(--muted); }
+.final .res { font-size: 30px; font-weight: 700; color: var(--pollen); letter-spacing: .08em; text-transform: uppercase; }
 /* touch controls (phones / tablets): drive stick, turn stick, mechanism buttons */
 .touch { position: absolute; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-end; justify-content: space-between;
   padding: 0 max(14px, env(safe-area-inset-left, 0px)); pointer-events: none; }
@@ -55,42 +92,105 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .tbtns button { background: rgba(29,36,43,.85); color: var(--fg); border: 1px solid var(--line); min-width: 72px; padding: 12px 10px; touch-action: none; }
 .tbtns button.on { background: var(--pollen); color: var(--bg); }
 .tbtns .fire { border-color: var(--pollen); }
-body.touch-on .keys { display: none; }
-body.touch-on .viewbtns { bottom: auto; top: calc(14px + env(safe-area-inset-top, 0px)); }
-button { font: 600 14px var(--font-body); color: var(--bg); background: var(--pollen); border: 0; border-radius: 4px; padding: 9px 16px; cursor: pointer; }
-button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--pollen); outline-offset: 2px; }
-.sheet { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8,10,12,.72);
-  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow-y: auto; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; width: min(760px, 100%); padding: 22px 24px; display: grid; gap: 18px; }
-h1 { font-family: var(--font-display); font-size: 34px; font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; }
-h1 span { color: var(--pollen); }
-h2 { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin: 0; letter-spacing: .02em; }
-.lede { color: var(--muted); margin: 0; max-width: 62ch; line-height: 1.5; }
+body.touch-on .robothud { bottom: calc(160px + env(safe-area-inset-bottom, 0px)); }
+
+/* ---------- screens (menus) ---------- */
+.screen { position: absolute; inset: 0; z-index: 10; overflow-y: auto; overscroll-behavior: contain; }
+.screen.scrim { background: var(--scrim); display: grid; place-items: center;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; width: min(820px, 100%); padding: 22px 24px; display: grid; gap: 18px; zoom: var(--ui-scale); }
+.panel.narrow { width: min(420px, 100%); }
+.panel-head { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.actions .spacer { flex: 1; }
+/* main menu: title and a column of large buttons over the live AI match */
+#scr-menu { background: linear-gradient(90deg, rgba(8,10,12,.92) 0%, rgba(8,10,12,.78) 34%, rgba(8,10,12,.18) 62%, rgba(8,10,12,0) 100%); }
+@media (max-width: 760px) { #scr-menu { background: linear-gradient(180deg, rgba(8,10,12,.55), rgba(8,10,12,.9) 45%); } }
+.menu-inner { min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 26px; zoom: var(--ui-scale);
+  padding: calc(56px + env(safe-area-inset-top, 0px)) 16px calc(56px + env(safe-area-inset-bottom, 0px)) max(16px, min(7vw, 96px), env(safe-area-inset-left, 0px)); max-width: 520px; }
+.brand .kicker { font-family: var(--font-display); font-size: 14px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+.brand h1 { font-size: clamp(46px, 7vw, 72px); line-height: .95; margin-top: 6px; }
+.brand .lede { margin-top: 10px; }
+.menu-list { display: grid; gap: 8px; }
+.mbtn { display: grid; gap: 2px; text-align: left; background: rgba(22,27,32,.82); color: var(--fg); border: 1px solid var(--line); border-left: 3px solid transparent;
+  padding: 12px 16px; border-radius: 6px; font: 600 20px var(--font-display); letter-spacing: .04em; text-transform: uppercase; transition: border-color .12s, background .12s, transform .12s; }
+.mbtn small { font: 400 12.5px var(--font-body); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.mbtn:hover, .mbtn:focus-visible { background: rgba(35,43,51,.92); border-left-color: var(--pollen); transform: translateX(3px); outline: none; }
+.mbtn.primary { border-left-color: var(--pollen); }
+.mbtn:disabled { opacity: .55; transform: none; }
+.menu-foot { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 16px; flex-wrap: wrap; justify-content: flex-end;
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted); pointer-events: none; zoom: var(--ui-scale); }
+@media (max-height: 680px) {
+  .menu-inner { gap: 14px; padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(36px + env(safe-area-inset-bottom, 0px)); }
+  .brand .lede { display: none; } .brand h1 { font-size: 44px; }
+  .mbtn { padding: 8px 14px; font-size: 18px; } .mbtn small { display: none; }
+}
+.menu-foot .live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--red); margin-right: 6px; vertical-align: 1px; animation: blink 1.6s infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+/* forms */
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 18px; }
-label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+label.f { display: grid; gap: 5px; font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
 input, select, textarea { font: 14px var(--font-body); color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; text-transform: none; letter-spacing: 0; }
 textarea { resize: vertical; min-height: 56px; }
 .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .seg button { flex: 1; background: transparent; color: var(--muted); border-radius: 0; padding: 8px; font-weight: 500; }
 .seg button[aria-pressed="true"].r { background: var(--red); color: #fff; }
 .seg button[aria-pressed="true"].b { background: var(--blue); color: #fff; }
-.seg button[aria-pressed="true"].n { background: var(--panel-2); color: var(--fg); }
+.seg button[aria-pressed="true"].n { background: var(--panel-3); color: var(--fg); }
+.with-btn { display: flex; gap: 6px; } .with-btn input { flex: 1; min-width: 0; } .with-btn button { padding: 6px 10px; }
 .note { font-size: 12.5px; color: var(--muted); line-height: 1.5; border-left: 2px solid var(--line); padding-left: 10px; margin: 0; }
-.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .parsed { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); min-height: 1.2em; }
 .parsed b { color: var(--pollen); font-weight: 500; }
-.toast { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; max-width: calc(100% - 32px); }
+.standpick { display: grid; gap: 6px; }
+.standpick .lbl { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+#standMap { width: 100%; height: 210px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
+/* settings */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs [role="tab"] { background: transparent; color: var(--muted); border-radius: 4px 4px 0 0; padding: 9px 14px; font: 600 15px var(--font-display); letter-spacing: .06em; text-transform: uppercase;
+  border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--pollen); }
+.srows { display: grid; }
+.srow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, 260px); gap: 6px 18px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.srow:last-child { border-bottom: 0; }
+.srow .k { font-weight: 500; }
+.srow .h { grid-column: 1; font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+.srow .v { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+.srow .v select { width: 100%; }
+.srow .v input[type="range"] { flex: 1; min-width: 0; accent-color: var(--pollen); }
+.srow .v output { font-family: var(--font-mono); font-size: 12px; color: var(--muted); min-width: 5ch; text-align: right; }
+.srow .v .kb { min-width: 0; flex: 1; padding: 7px 8px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); font: 500 12.5px var(--font-mono); }
+.srow .v .kb.wait { border-color: var(--pollen); color: var(--pollen); }
+input[type="checkbox"].switch { appearance: none; width: 42px; height: 24px; border-radius: 12px; background: var(--panel-3); border: 1px solid var(--line); position: relative; cursor: pointer; padding: 0; margin: 0; flex: none; }
+input[type="checkbox"].switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .12s; }
+input[type="checkbox"].switch:checked { background: var(--pollen); border-color: var(--pollen); }
+input[type="checkbox"].switch:checked::after { transform: translateX(18px); background: var(--bg); }
+@media (max-width: 560px) { .srow { grid-template-columns: 1fr; } .srow .v { grid-column: 1; grid-row: auto; justify-content: flex-start; } }
+/* help */
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: baseline; font-size: 13.5px; }
+.kv dt { justify-self: start; } .kv dd { margin: 0; color: var(--muted); }
+/* report */
 .tbl-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 13px; }
 td, th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-weight: 500; font-size: 12px; }
-.bigscore { display: flex; gap: 22px; align-items: baseline; font-family: var(--font-display); font-weight: 700; }
+.bigscore { display: flex; gap: 22px; align-items: baseline; font-family: var(--font-display); font-weight: 700; flex-wrap: wrap; }
 .bigscore .r { color: var(--red); font-size: 54px; } .bigscore .b { color: var(--blue); font-size: 54px; } .bigscore .vs { color: var(--muted); font-size: 22px; }
 canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-radius: 4px; display: block; }
+/* about */
+.about-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; }
+.about-grid dt { color: var(--muted); } .about-grid dd { margin: 0; font-family: var(--font-mono); }
+.upd-state.new { color: var(--pollen); }
+ul.notes { margin: 0; padding-left: 18px; line-height: 1.55; color: var(--muted); }
+/* boot */
+.boot { position: absolute; inset: 0; z-index: 40; background: var(--bg); display: grid; place-items: center; transition: opacity .5s; }
+.boot.gone { opacity: 0; pointer-events: none; }
+.boot .b { display: grid; gap: 14px; width: min(360px, calc(100% - 32px)); }
+.boot .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.boot .bar i { display: block; height: 100%; width: 0; background: var(--pollen); transition: width .25s; }
+.boot .msg { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); min-height: 1.3em; }
 /* update bar: top of the screen, only outside live play (never covers a running match) */
-.updbar { position: absolute; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
+.updbar { position: absolute; top: 0; left: 0; right: 0; z-index: 35; display: flex; align-items: center; gap: 12px;
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
   background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13.5px; }
 .updbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pollen); flex: none; }
@@ -100,19 +200,10 @@ canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-ra
 .updbar button { padding: 6px 12px; font-size: 13px; }
 .updbar .x { background: transparent; color: var(--muted); padding: 4px 8px; font-size: 18px; line-height: 1; }
 .updbar .x:hover { color: var(--fg); }
-body.has-updbar .hud, body.has-updbar .conn { top: calc(56px + env(safe-area-inset-top, 0px)); }
-body.has-updbar .sheet { padding-top: 64px; }
-.standpick { display: grid; gap: 6px; }
-.standpick .lbl { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-#standMap { width: 100%; height: 210px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
-.about { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
-.about .ver { font-family: var(--font-mono); color: var(--fg); }
-.about .state.new { color: var(--pollen); }
-.about button { padding: 5px 10px; font-size: 12.5px; }
-.about ul { flex-basis: 100%; margin: 2px 0 0; padding-left: 18px; line-height: 1.5; }
-.assets { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); font-family: var(--font-mono); font-size: 11px; color: var(--muted); pointer-events: none; }
-.tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
-@media (max-width: 520px) { .hud .score { font-size: 28px; } .hud .timer { font-size: 32px; } .keys { display: none; } }
+body.has-updbar .screen { padding-top: 48px; }
+.assets { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-family: var(--font-mono); font-size: 11px; color: var(--muted); pointer-events: none; z-index: 11; text-align: right; max-width: 60%; }
+@media (max-width: 520px) { .hud .score { font-size: 28px; } .hud .timer { font-size: 32px; } .keys { display: none; } .final .nums { font-size: 52px; } }
+body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after { transition: none !important; animation: none !important; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -123,18 +214,23 @@ body.has-updbar .sheet { padding-top: 64px; }
     <button type="button" id="updNow">Update now</button>
     <button type="button" class="x" id="updX" aria-label="Dismiss this update notice">&times;</button>
   </div>
-  <canvas id="view" aria-label="FTC BIOBUZZ field seen from the driver station"></canvas>
+  <canvas id="view" tabindex="-1" aria-label="FTC BIOBUZZ field seen from the driver station"></canvas>
   <div class="assets" id="assetState" aria-live="polite"></div>
+
+  <!-- in-match HUD -->
   <div class="conn" id="conn" hidden><i></i><span id="connText">Connected</span></div>
+  <div class="fps" id="fps" hidden></div>
   <div class="hud" id="hud" hidden>
     <div class="score red" id="sRed">0</div>
     <div class="clock"><div class="timer" id="timer">2:30</div><div class="phase" id="phase">Pre-match</div></div>
     <div class="score blue" id="sBlue">0</div>
   </div>
-  <div class="keys" id="keys" hidden>WASD drive · ←/→ turn · Shift intake · C reverse · hold Space to fire (the robot aims itself; light green = ready) · ↑/↓ trim hood · drag to look · Esc leave</div>
-  <div class="viewbtns" id="viewBtns" hidden><button class="ghost" id="leaveBtn">Leave match</button><button class="ghost" id="viewBtn">Overhead view</button></div>
+  <div class="viewbtns" id="viewBtns" hidden><button class="ghost" id="viewBtn">Overhead</button><button class="ghost" id="pauseBtn" aria-label="Pause">&#10074;&#10074; Pause</button></div>
   <div class="hint" id="hint" hidden></div>
-  <div class="note2" id="note2" hidden></div>
+  <div class="robothud" id="robotHud" hidden aria-live="off"><i class="led" id="rhLed"></i><span id="rhState">Shooter idle</span><span class="balls" id="rhBalls" aria-label="Balls held"><i></i><i></i><i></i><i></i></span></div>
+  <div class="keys" id="keys" hidden></div>
+  <div class="note2" id="note2" role="status" hidden></div>
+  <div class="final" id="finalBanner" hidden><div class="box"><div class="word">Match complete</div><div class="nums"><span class="r" id="finalRed">0</span><span class="vs">vs</span><span class="b" id="finalBlue">0</span></div><div class="res" id="finalWord"></div></div></div>
   <div class="touch" id="touch" hidden>
     <div class="stick" id="stickL" aria-label="Drive stick"><i></i></div>
     <div class="tbtns">
@@ -144,58 +240,120 @@ body.has-updbar .sheet { padding-top: 64px; }
     <div class="stick" id="stickR" aria-label="Turn stick"><i></i></div>
   </div>
 
-  <div class="sheet" id="setup">
-    <form class="card" id="setupForm">
-      <div>
+  <!-- main menu -->
+  <section class="screen" id="scr-menu" aria-label="Main menu" hidden>
+    <div class="menu-inner">
+      <div class="brand">
+        <div class="kicker">FIRST Tech Challenge &middot; 2026&ndash;2027 season</div>
         <h1>BIOBUZZ <span>Drive</span></h1>
-        <p class="lede">Stand in the alliance area and drive a full 2:38 match: 30 s AUTO, 8 s transition, 2:00 TELEOP. Physics, battery sag, HIVE tips, FLOWER ownership and fouls come from the GamePlan simulation core, running in your browser.</p>
+        <p class="lede">Stand at the driver station and play a full match against simulated robots. Physics, battery sag, HIVE tips and fouls come from the GamePlan simulation running in your browser.</p>
       </div>
+      <nav class="menu-list" aria-label="Main menu">
+        <button type="button" class="mbtn primary" data-go="setup" id="mPlay">Play match<small>Choose alliance, opponents and where you stand</small></button>
+        <button type="button" class="mbtn" id="mQuick">Quick practice<small>Start driving right away &middot; practice rules</small></button>
+        <button type="button" class="mbtn" data-go="settings">Settings<small>Graphics, camera, controls, audio, accessibility</small></button>
+        <button type="button" class="mbtn" data-go="help">How to play<small>Controls and scoring</small></button>
+        <button type="button" class="mbtn" data-go="about">About &amp; updates<small id="menuVer">GamePlan</small></button>
+      </nav>
+    </div>
+    <div class="menu-foot"><span class="live">AI match in the background</span><span id="menuLoad"></span></div>
+  </section>
+
+  <!-- match setup -->
+  <section class="screen scrim" id="scr-setup" aria-label="Match setup" hidden>
+    <form class="panel" id="setupForm">
+      <div class="panel-head"><h1>Match <span>setup</span></h1><span class="tag" id="setupVer"></span></div>
       <div class="grid">
-        <label>Alliance
+        <label class="f">Alliance
           <div class="seg" role="group" aria-label="Alliance"><button type="button" class="r" id="aRed" aria-pressed="true">Red</button><button type="button" class="b" id="aBlue" aria-pressed="false">Blue</button></div>
         </label>
-        <label>Mode
-          <div class="seg" role="group" aria-label="Mode"><button type="button" class="n" id="mComp" aria-pressed="true">Competition</button><button type="button" class="n" id="mPrac" aria-pressed="false">Practice</button></div>
+        <label class="f">Rules
+          <div class="seg" role="group" aria-label="Rules"><button type="button" class="n" id="mComp" aria-pressed="true">Competition</button><button type="button" class="n" id="mPrac" aria-pressed="false">Practice</button></div>
         </label>
-
-        <label for="eye">Eye height (m) <input id="eye" type="number" min="1.0" max="2.1" step="0.05" value="1.65"></label>
-        <label for="fov">Field of view (°) <input id="fov" type="number" min="50" max="110" step="1" value="75"></label>
-        <label for="diff">AI skill <select id="diff"><option value="0.3">Rookie</option><option value="0.6" selected>Regional</option><option value="0.9">Worlds</option></select></label>
-        <label for="opp">Opponent style <select id="opp"><option value="aggressive">Aggressive scorers</option><option value="defensive">Defensive</option><option value="cautious">Cautious</option><option value="inconsistent">Mechanically inconsistent</option><option value="coordinated">Highly coordinated</option><option value="rookie">Inexperienced</option></select></label>
-        <label for="seed">Match seed <input id="seed" type="number" min="1" value="7"></label>
-        <label for="gfx">Graphics <select id="gfx"><option value="ultra">Ultra (AO, 4K shadows)</option><option value="high" selected>High</option><option value="balanced">Balanced</option></select></label>
+        <label class="f" for="diff">AI skill <select id="diff"><option value="0.3">Rookie</option><option value="0.6" selected>Regional</option><option value="0.9">Worlds</option></select></label>
+        <label class="f" for="opp">Opponents <select id="opp"><option value="aggressive">Aggressive scorers</option><option value="defensive">Defensive</option><option value="cautious">Cautious</option><option value="inconsistent">Mechanically inconsistent</option><option value="coordinated">Highly coordinated</option><option value="rookie">Inexperienced</option></select></label>
+        <label class="f" for="seed">Match seed <span class="with-btn"><input id="seed" type="number" min="1" value="7"><button type="button" class="ghost" id="seedRnd" aria-label="Random seed">Random</button></span></label>
       </div>
       <div class="standpick">
         <span class="lbl" id="standLbl">Where you stand: click or drag the dot in your alliance area</span>
         <canvas id="standMap" tabindex="0" role="img" aria-labelledby="standLbl"></canvas>
       </div>
-      <label for="instr">Instruction for your alliance partner
+      <label class="f" for="instr">Instruction for your alliance partner
         <textarea id="instr" placeholder="e.g. Prioritize collecting POLLEN. Stay out of my way while I operate the intake.">Stay out of my way while I operate the intake</textarea>
       </label>
       <div class="parsed" id="parsed" aria-live="polite"></div>
-      <p class="note" id="modeNote"><span id="modeText">Competition: your robot sits still during AUTO (no autonomous program in the browser build), you drive in TELEOP.</span> The browser cannot run your team's Java code; your robot uses a built-in mecanum TeleOp. Desktop GamePlan runs real FTC code.</p>
-      <div class="row">
-        <span class="parsed" id="loadState">Loading simulation…</span>
-        <button type="submit" id="startBtn" disabled>Start match</button>
-      </div>
-      <div class="about" id="about">
-        <span>GamePlan <span class="ver" id="aboutVer"></span></span>
-        <span class="state" id="aboutState">Update checks need you to be signed in to claude.ai</span>
-        <button type="button" class="ghost" id="aboutCheck">Check for updates</button>
-        <button type="button" id="aboutUpdate" hidden>Update now</button>
-        <ul id="aboutNotes" hidden></ul>
-      </div>
+      <p class="note" id="modeNote"><span id="modeText">Competition: your robot sits still during AUTO (no autonomous program in the browser build); you drive in TELEOP.</span> The browser cannot run your team's Java code; your robot uses a built-in mecanum TeleOp. Desktop GamePlan runs real FTC code.</p>
+      <div class="actions"><span class="parsed spacer" id="loadState">Loading simulation&hellip;</span><button type="button" class="ghost" data-back>Back</button><button type="submit" id="startBtn" disabled>Start match</button></div>
     </form>
-  </div>
+  </section>
 
-  <div class="toast" id="toast" hidden>
-    <span>Match report ready</span>
-    <button type="button" id="openReport">Open</button>
-    <button type="button" class="ghost" id="dismiss">Dismiss</button>
-  </div>
+  <!-- settings -->
+  <section class="screen scrim" id="scr-settings" aria-label="Settings" hidden>
+    <div class="panel">
+      <div class="panel-head"><h1>Settings</h1><span class="tag">saved in this browser</span></div>
+      <div class="tabs" role="tablist" aria-label="Settings sections" id="setTabs"></div>
+      <div class="srows" role="tabpanel" id="setPanel"></div>
+      <div class="actions"><button type="button" class="ghost" id="setResetTab">Reset this section</button><span class="spacer"></span><button type="button" data-back>Done</button></div>
+    </div>
+  </section>
 
-  <div class="sheet" id="report" hidden>
-    <div class="card" id="reportCard"></div>
+  <!-- how to play -->
+  <section class="screen scrim" id="scr-help" aria-label="How to play" hidden>
+    <div class="panel">
+      <div class="panel-head"><h1>How to <span>play</span></h1></div>
+      <div class="cols">
+        <div><h3>Keyboard</h3><dl class="kv" id="helpKeys"></dl></div>
+        <div><h3>Gamepad (FTC layout)</h3><dl class="kv">
+          <dt><kbd>Left stick</kbd></dt><dd>Drive (robot-centric)</dd><dt><kbd>Right stick</kbd></dt><dd>Turn</dd>
+          <dt><kbd>RT</kbd></dt><dd>Intake</dd><dt><kbd>LT</kbd></dt><dd>Reverse intake</dd><dt><kbd>A</kbd></dt><dd>Fire (hold)</dd>
+          <dt><kbd>D-pad &uarr;/&darr;</kbd></dt><dd>Hood trim</dd><dt><kbd>Start</kbd></dt><dd>Pause</dd><dt><kbd>Back</kbd></dt><dd>Overhead view</dd>
+          <dt><kbd>D-pad / A / B</kbd></dt><dd>Move, choose and go back in menus</dd></dl></div>
+      </div>
+      <div><h3>The match</h3><p class="lede" id="helpMatch"></p></div>
+      <div><h3>Points</h3><div class="tbl-wrap"><table id="helpPoints"></table></div><p class="parsed" id="helpSrc"></p></div>
+      <div><h3>Your robot</h3><p class="lede">A mecanum drive with a roller intake, a riser and a hooded flywheel launcher. The flywheel spins all match; its speed and the hood follow your distance to your HIVE's up-facing CELL. Hold Fire and the gate opens only for a ready shot (light green). With auto-aim on (Settings &gt; Gameplay) the robot also turns to face the CELL while you keep driving.</p></div>
+      <div class="actions"><button type="button" data-back>Back</button></div>
+    </div>
+  </section>
+
+  <!-- about & updates -->
+  <section class="screen scrim" id="scr-about" aria-label="About and updates" hidden>
+    <div class="panel narrow">
+      <div class="panel-head"><h1>About</h1></div>
+      <dl class="about-grid"><dt>Version</dt><dd id="aboutVer"></dd><dt>Built</dt><dd id="aboutBuilt"></dd><dt>Season</dt><dd id="aboutSeason"></dd><dt>Rules</dt><dd id="aboutRules"></dd></dl>
+      <div><h3>Updates</h3><p class="lede upd-state" id="aboutState">Update checks need you to be signed in to claude.ai</p><ul class="notes" id="aboutNotes" hidden></ul></div>
+      <div class="actions"><button type="button" class="ghost" id="aboutCheck">Check for updates</button><button type="button" id="aboutUpdate" hidden>Update now</button></div>
+      <div><h3>What's new in this version</h3><ul class="notes" id="aboutNew"></ul></div>
+      <p class="note">Field and game pieces come from the official BIOBUZZ field CAD. Robots are representative models built from the simulated robot's geometry, not a team's CAD.</p>
+      <div class="actions"><button type="button" data-back>Back</button></div>
+    </div>
+  </section>
+
+  <!-- pause -->
+  <section class="screen scrim" id="scr-pause" aria-label="Paused" hidden>
+    <div class="panel narrow">
+      <div class="panel-head"><h1>Paused</h1><span class="tag" id="pauseTime"></span></div>
+      <nav class="menu-list" aria-label="Pause menu">
+        <button type="button" class="mbtn primary" id="pResume">Resume</button>
+        <button type="button" class="mbtn" id="pRestart">Restart match<small>Same setup and seed</small></button>
+        <button type="button" class="mbtn" data-go="settings">Settings</button>
+        <button type="button" class="mbtn" data-go="help">How to play</button>
+        <button type="button" class="mbtn" id="pLeave">Leave match<small>Back to the main menu</small></button>
+      </nav>
+    </div>
+  </section>
+
+  <!-- post-match report -->
+  <section class="screen scrim" id="scr-report" aria-label="Match report" hidden>
+    <div class="panel">
+      <div id="reportBody" style="display:grid;gap:18px"></div>
+      <div class="actions"><button type="button" class="ghost" id="rMenu">Main menu</button><button type="button" class="ghost" id="rSetup">Change setup</button><button type="button" id="rAgain">Play again</button></div>
+    </div>
+  </section>
+
+  <!-- boot -->
+  <div class="boot" id="boot" role="status" aria-live="polite">
+    <div class="b"><h1>BIOBUZZ <span>Drive</span></h1><div class="bar"><i id="bootBar"></i></div><div class="msg" id="bootMsg">Starting&hellip;</div></div>
   </div>
 </div>
 

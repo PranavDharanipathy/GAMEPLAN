@@ -35,8 +35,8 @@ Pad gPad;
 // shows "ready".
 class BuiltInTeleop : public AIController {
 public:
-    BuiltInTeleop(uint64_t seed, bool competition)
-        : AIController(Personality::preset("balanced"), 0.5, StrategyDirectives(), seed, "human"), competition_(competition) {}
+    BuiltInTeleop(uint64_t seed, bool competition, bool aimAssist)
+        : AIController(Personality::preset("balanced"), 0.5, StrategyDirectives(), seed, "human"), competition_(competition), assist_(aimAssist) {}
     void update(World& w, int self, double t, double dt) override {
         Robot& r = *w.robots()[self].robot;
         Phase ph = w.rules().phase();
@@ -59,7 +59,7 @@ public:
         else aimYaw_ = std::atan2(target.y - r.pos.y, target.x - r.pos.x);
         // --- drive: driver translation always; rotation from the stick, or heading lock while firing
         double y = -gPad.ly, x = gPad.lx, rot = gPad.rx;
-        if (fire) {
+        if (fire && assist_) {
             double e = wrapAngle(aimYaw_ - r.heading);
             rot = clampd(-2.2 * e + 0.3 * r.omega, -0.7, 0.7);     // rot > 0 turns clockwise (omega < 0)
         }
@@ -92,9 +92,11 @@ public:
                 double cur = j.w * mech.flyRadius;
                 bool atSpeed = std::fabs(cur - want) < 0.015 * want;
                 bool aimed = std::fabs(wrapAngle(aimYaw_ - r.heading)) < 0.04 && std::fabs(r.omega) < 0.6;
-                ready = solved_ && atSpeed && aimed && hoodSettled(r);
+                // with auto-aim the gate waits for the heading lock; without it the driver aims and the
+                // gate opens whenever the wheel and hood are ready (the light still shows "lined up")
+                ready = solved_ && atSpeed && hoodSettled(r) && (aimed || !assist_);
                 dbg_[0] = solved_; dbg_[1] = cur / std::max(want, 1e-6); dbg_[2] = wrapAngle(aimYaw_ - r.heading); dbg_[3] = r.omega; dbg_[4] = hoodSettled(r);
-                status_ = ready ? 2 : 1;
+                status_ = ready && aimed ? 2 : 1;
             }
         }
         for (auto& mech : r.mechs) {
@@ -131,6 +133,7 @@ public:
     double dbg_[5] = {0, 0, 0, 0, 0};   // diagnostics for tests: solved, speed ratio, aim error, yaw rate, hood settled   // 0 shooter off, 1 spinning / not ready, 2 at speed and aimed
 private:
     bool competition_;
+    bool assist_;
 };
 
 std::unique_ptr<SeasonDef> gSeason;
@@ -155,7 +158,9 @@ GP_EXPORT(gp_alloc) char* gp_alloc(int n) { return static_cast<char*>(std::mallo
 GP_EXPORT(gp_free) void gp_free(char* p) { std::free(p); }
 
 // settings: {seed, alliance:"red"|"blue", mode:"competition"|"practice", difficulty, partnerInstruction,
-//            opponentPersonality, partnerPersonality, uncertainty:"realistic"}
+//            opponentPersonality, partnerPersonality, uncertainty:"realistic",
+//            aimAssist: true (Fire turns the robot to its HIVE), demo: false (the user robot is AI-driven too,
+//            for the match that plays behind the menus)}
 GP_EXPORT(gp_init) int gp_init(const char* season, const char* comps, const char* userRobot, const char* aiRobot, const char* settings) {
     Json st = Json::parse(settings);
     gSeason.reset(new SeasonDef(SeasonDef::fromText(season)));
@@ -171,8 +176,14 @@ GP_EXPORT(gp_init) int gp_init(const char* season, const char* comps, const char
     Alliance ua = st["alliance"].str("red") == "blue" ? Alliance::Blue : Alliance::Red;
     Alliance oa = other(ua);
     double diff = st["difficulty"].num(0.6);
-    auto human = std::make_shared<BuiltInTeleop>(wc.seed, wc.competitionMode);
-    gHuman = human;
+    std::shared_ptr<AIController> human;
+    if (st["demo"].boolean(false)) {
+        human = std::make_shared<AIController>(Personality::preset("aggressive"), diff, StrategyDirectives(), wc.seed, "demo");
+        gHuman.reset();
+    } else {
+        gHuman = std::make_shared<BuiltInTeleop>(wc.seed, wc.competitionMode, st["aimAssist"].boolean(true));
+        human = gHuman;
+    }
     gPartner = std::make_shared<AIController>(Personality::preset(st["partnerPersonality"].str("coordinated")), diff,
                                               StrategyDirectives::parse(st["partnerInstruction"].str("")), wc.seed, "partner");
     auto o1 = std::make_shared<AIController>(Personality::preset(st["opponentPersonality"].str("aggressive")), diff, StrategyDirectives(), wc.seed, "opp1");
