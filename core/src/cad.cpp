@@ -1,3 +1,4 @@
+#include "gameplan/error.hpp"
 #include "gameplan/cad.hpp"
 
 #include <algorithm>
@@ -68,10 +69,10 @@ Mesh loadMesh(const std::string& path, double unitScale) {
                 if (w == "vertex") { Vec3 p; ss >> p.x >> p.y >> p.z; tri.push_back(weldV(p)); if (tri.size() == 3) { m.f.push_back({tri[0], tri[1], tri[2]}); tri.clear(); } }
             }
         } else {
-            if (data.size() < 84) throw std::runtime_error("STL too short: " + path);
+            if (data.size() < 84) GP_THROW(std::runtime_error("STL too short: " + path));
             uint32_t n;
             std::memcpy(&n, data.data() + 80, 4);
-            if (data.size() < 84 + size_t(n) * 50) throw std::runtime_error("truncated binary STL: " + path);
+            if (data.size() < 84 + size_t(n) * 50) GP_THROW(std::runtime_error("truncated binary STL: " + path));
             for (uint32_t t = 0; t < n; ++t) {
                 const char* p = data.data() + 84 + size_t(t) * 50 + 12;
                 int ids[3];
@@ -214,7 +215,7 @@ StepAssembly readStepAssembly(const std::string& path) {
     A.file = path;
     std::string text = readTextFile(path);
     size_t ds = text.find("DATA;");
-    if (ds == std::string::npos) throw std::runtime_error("not a STEP file: " + path);
+    if (ds == std::string::npos) GP_THROW(std::runtime_error("not a STEP file: " + path));
     std::smatch m;
     std::regex orig("/\\*\\s*originating_system\\s*\\*/\\s*'([^']*)'");
     if (std::regex_search(text, m, orig)) A.originatingSystem = m[1];

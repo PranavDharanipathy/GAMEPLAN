@@ -1,10 +1,9 @@
+#include "gameplan/error.hpp"
 #include "gameplan/json.hpp"
 
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
-#include <sstream>
 
 namespace gp {
 
@@ -18,7 +17,7 @@ struct Parser {
     [[noreturn]] void fail(const char* msg) {
         size_t line = 1;
         for (size_t k = 0; k < i && k < t.size(); ++k) if (t[k] == '\n') ++line;
-        throw std::runtime_error(std::string("JSON parse error: ") + msg + " at line " + std::to_string(line));
+        GP_THROW(std::runtime_error(std::string("JSON parse error: ") + msg + " at line " + std::to_string(line)));
     }
     void ws() {
         while (i < t.size()) {
@@ -145,14 +144,14 @@ Json Json::parseFile(const std::string& path) { return parse(readTextFile(path))
 double Json::num() const {
     if (type_ == Type::Number) return n_;
     if (type_ == Type::Bool) return b_ ? 1.0 : 0.0;
-    throw std::runtime_error("JSON: not a number");
+    GP_THROW(std::runtime_error("JSON: not a number"));
 }
 bool Json::boolean() const {
-    if (type_ != Type::Bool) throw std::runtime_error("JSON: not a bool");
+    if (type_ != Type::Bool) GP_THROW(std::runtime_error("JSON: not a bool"));
     return b_;
 }
 const std::string& Json::str() const {
-    if (type_ != Type::String) throw std::runtime_error("JSON: not a string");
+    if (type_ != Type::String) GP_THROW(std::runtime_error("JSON: not a string"));
     return s_;
 }
 size_t Json::size() const {
@@ -161,16 +160,16 @@ size_t Json::size() const {
     return 0;
 }
 const Json& Json::operator[](size_t i) const {
-    if (type_ != Type::Array || i >= a_.size()) throw std::runtime_error("JSON: index out of range");
+    if (type_ != Type::Array || i >= a_.size()) GP_THROW(std::runtime_error("JSON: index out of range"));
     return a_[i];
 }
 Json& Json::operator[](size_t i) {
-    if (type_ != Type::Array || i >= a_.size()) throw std::runtime_error("JSON: index out of range");
+    if (type_ != Type::Array || i >= a_.size()) GP_THROW(std::runtime_error("JSON: index out of range"));
     return a_[i];
 }
 void Json::push(Json v) {
     if (type_ == Type::Null) type_ = Type::Array;
-    if (type_ != Type::Array) throw std::runtime_error("JSON: push on non-array");
+    if (type_ != Type::Array) GP_THROW(std::runtime_error("JSON: push on non-array"));
     a_.push_back(std::move(v));
 }
 bool Json::has(const std::string& k) const {
@@ -185,7 +184,7 @@ const Json& Json::operator[](const std::string& k) const {
 }
 Json& Json::set(const std::string& k, Json v) {
     if (type_ == Type::Null) type_ = Type::Object;
-    if (type_ != Type::Object) throw std::runtime_error("JSON: set on non-object");
+    if (type_ != Type::Object) GP_THROW(std::runtime_error("JSON: set on non-object"));
     for (auto& kv : o_) if (kv.first == k) { kv.second = std::move(v); return kv.second; }
     o_.emplace_back(k, std::move(v));
     return o_.back().second;
@@ -240,16 +239,20 @@ std::string Json::dump(int indent) const {
 }
 
 std::string readTextFile(const std::string& path) {
-    std::ifstream f(path, std::ios::binary);
-    if (!f) throw std::runtime_error("cannot open " + path);
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
+    std::FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) GP_THROW(std::runtime_error("cannot open " + path));
+    std::string out;
+    char buf[65536];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) out.append(buf, n);
+    std::fclose(f);
+    return out;
 }
 void writeTextFile(const std::string& path, const std::string& text) {
-    std::ofstream f(path, std::ios::binary);
-    if (!f) throw std::runtime_error("cannot write " + path);
-    f << text;
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f) GP_THROW(std::runtime_error("cannot write " + path));
+    std::fwrite(text.data(), 1, text.size(), f);
+    std::fclose(f);
 }
 std::string fnv1a64Hex(const std::string& data) {
     uint64_t h = 1469598103934665603ULL;

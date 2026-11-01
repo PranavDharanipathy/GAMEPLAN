@@ -1,3 +1,4 @@
+#include "gameplan/error.hpp"
 #include "gameplan/robot.hpp"
 
 #include <cmath>
@@ -187,7 +188,7 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
         h.feed.scale = P("electrical.feed_scale." + h.id, "electrical", 1.0, 1.0, Dist::LogNormal, 0.3, +1);
         elec.hubs.push_back(h);
     }
-    if (elec.hubs.empty()) throw std::runtime_error("robot has no hubs: " + cfg.name);
+    if (elec.hubs.empty()) GP_THROW(std::runtime_error("robot has no hubs: " + cfg.name));
     // Motors + joints
     for (auto& md : cfg.motorDefs) {
         MotorUnit mu;
@@ -204,7 +205,7 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
         mu.lead.scale = P("electrical.lead_scale." + mu.name, "electrical", 1.0, 1.0, Dist::LogNormal, 0.2, +1);
         mu.tWinding = mu.tCase = elec.ambient;
         int hub = elec.hubIndex(md["hub"].str("control"));
-        if (hub < 0) throw std::runtime_error("motor " + mu.name + " references unknown hub");
+        if (hub < 0) GP_THROW(std::runtime_error("motor " + mu.name + " references unknown hub"));
         elec.motors.push_back(mu);
         elec.motorHub.push_back(hub);
         motorNames.push_back(mu.name);
@@ -243,7 +244,7 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
         if (ld["minAngle_rad"].isNumber()) su.minAngle = ld["minAngle_rad"].num();
         if (ld["maxAngle_rad"].isNumber()) su.maxAngle = ld["maxAngle_rad"].num();
         int hub = elec.hubIndex(su.hubId);
-        if (hub < 0) throw std::runtime_error("servo " + su.name + " references unknown hub");
+        if (hub < 0) GP_THROW(std::runtime_error("servo " + su.name + " references unknown hub"));
         elec.servos.push_back(su);
         elec.servoHub.push_back(hub);
         servoNames.push_back(su.name);
@@ -252,7 +253,7 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
     for (auto& w : cfg.wheels) {
         Wheel wh = w;
         int m = motorIndex(w.name);
-        if (m < 0) throw std::runtime_error("wheel motor not found: " + w.name);
+        if (m < 0) GP_THROW(std::runtime_error("wheel motor not found: " + w.name));
         wh.joint = motorJoint[m];
         joints[wh.joint].jl = cfg.wheelInertia;
         wh.muScale = P("drivetrain.wheel_mu." + w.name, "drivetrain", 1.0, 1.0, Dist::LogNormal, 0.06, -1);
@@ -270,7 +271,7 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
                : t == "turret" ? MechType::Turret : t == "gate" ? MechType::Gate : t == "hood" ? MechType::Hood : MechType::Generic;
         if (md["motor"].isString()) {
             int mi = motorIndex(md["motor"].str());
-            if (mi < 0) throw std::runtime_error("mechanism motor not found: " + md["motor"].str());
+            if (mi < 0) GP_THROW(std::runtime_error("mechanism motor not found: " + md["motor"].str()));
             m.joint = motorJoint[mi];
             joints[m.joint].jl = md["inertia_kgm2"].num(joints[m.joint].jl);
             joints[m.joint].bearingViscous = md["viscous"].num(2e-5);
@@ -278,12 +279,12 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
         }
         for (auto& s : md["servos"].items()) {
             int si = servoIndex(s.str());
-            if (si < 0) throw std::runtime_error("mechanism servo not found: " + s.str());
+            if (si < 0) GP_THROW(std::runtime_error("mechanism servo not found: " + s.str()));
             m.servos.push_back(si);
         }
         if (md["servo"].isString()) {
             int si = servoIndex(md["servo"].str());
-            if (si < 0) throw std::runtime_error("mechanism servo not found: " + md["servo"].str());
+            if (si < 0) GP_THROW(std::runtime_error("mechanism servo not found: " + md["servo"].str()));
             m.servos.push_back(si);
         }
         m.rollerRadius = md["rollerRadius_m"].num(0.03);

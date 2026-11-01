@@ -72,6 +72,7 @@ struct HubSpec {
 class Components {
 public:
     static Components load(const std::string& path);
+    static Components fromText(const std::string& text);
     const MotorSpec& motor(const std::string& id) const;
     const GearboxSpec& gearbox(const std::string& id) const;
     const ServoSpec& servo(const std::string& id) const;

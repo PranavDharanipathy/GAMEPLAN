@@ -1,3 +1,4 @@
+#include "gameplan/error.hpp"
 #include "gameplan/world.hpp"
 
 #include <algorithm>
@@ -215,7 +216,7 @@ Vec3 World::tagPosition(int tagId, Vec3* normal) const {
             }
         }
     }
-    throw std::runtime_error("unknown AprilTag id " + std::to_string(tagId));
+    GP_THROW(std::runtime_error("unknown AprilTag id " + std::to_string(tagId)));
 }
 
 bool World::robotTouchesWall(int r, double margin) const {

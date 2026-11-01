@@ -71,6 +71,7 @@ struct SeasonDef {
     double momentaryS = 3, continuousS = 10;
 
     static SeasonDef load(const std::string& path);
+    static SeasonDef fromText(const std::string& text, const std::string& path = "");
     int points(const std::string& key, int def = 0) const {
         auto it = pts.find(key);
         return it == pts.end() ? def : it->second;

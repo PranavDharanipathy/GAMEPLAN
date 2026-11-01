@@ -1,3 +1,4 @@
+#include "gameplan/error.hpp"
 #include "gameplan/match.hpp"
 
 #include <algorithm>
@@ -54,7 +55,7 @@ static void setKey(GamepadState& g, const std::string& k, double v) {
             {"back", BTN_BACK}, {"start", BTN_START}, {"guide", BTN_GUIDE}, {"left_stick_button", BTN_LSTICK},
             {"right_stick_button", BTN_RSTICK}, {"touchpad", BTN_TOUCHPAD}};
         auto it = bits.find(k);
-        if (it == bits.end()) throw std::runtime_error("unknown gamepad key: " + k);
+        if (it == bits.end()) GP_THROW(std::runtime_error("unknown gamepad key: " + k));
         if (v != 0) g.buttons |= it->second; else g.buttons &= ~it->second;
     }
 }

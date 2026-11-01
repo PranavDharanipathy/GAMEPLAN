@@ -38,6 +38,7 @@ Statuses: Not started · Investigating · Designed · Implementing · Implemente
 | Stress tests | Validated | `runStressTests` | run on reference robot | scenario list fixed |
 | Legality | Tested | `legality.cpp` | legality test | inspection-only rules not checkable |
 | CAD: STEP assembly, mesh mass props, materials, annotations | Tested | `cad.cpp` | cube + STEP tests; field STEP parsed (Python prototype) | no B-rep tessellation |
+| Browser build (core → WebAssembly/WASI, 3D driver view, gamepad/keyboard, HUD, post-match report) | Validated | `apps/web/`, `web/`, `tools/build_web*.py` | Node full-match test (`web/node_test.js`); headless Chromium render + drive | built-in TeleOp instead of team Java code (no JVM in browser); single robot model |
 | Unreal host (pawn, input, match actor, HUD) | Implemented (unbuilt) | `unreal/GamePlan` | **none** — UE unavailable here | must be compiled & validated |
 | Physical gamepads | Implemented (unbuilt) | `GamePlanInput.cpp` | none | calibration UI missing |
 | Replay viewer UI | Not started | — | data supports scrubbing | Unreal replay actor to write |

@@ -13,6 +13,7 @@ local batch experiments.
 | FTC runtime (Java, real SDK 12.0 jars + shadows) | `runtime/` | built and tested here |
 | Project importer | `runtime/src/bridge/.../tools/Importer.java` | tested on a fixture and on a real team project |
 | BIOBUZZ season package | `seasons/biobuzz-2027/` | from TU07 manual + official field CAD |
+| Browser build (WebAssembly) | `apps/web/`, `web/` | built and tested; drive a match in any browser |
 | Unreal Engine host | `unreal/GamePlan/` | **written, not built** (no Unreal Engine in the dev container) |
 
 Honest status per feature: [IMPLEMENTATION_LEDGER.md](IMPLEMENTATION_LEDGER.md).
@@ -39,3 +40,11 @@ java -cp runtime/build/gameplan-runtime.jar org.gameplan.runtime.tools.Importer 
 ```
 
 Read [AGENTS.md](AGENTS.md) before changing anything.
+
+## Browser build
+```bash
+python3 tools/build_web.py && python3 tools/build_web_page.py
+```
+Needs clang 18 with the `wasm32-wasi` target and the WASI libc / libc++ sysroot (Ubuntu: `wasi-libc`,
+`libc++-18-dev-wasm32`, `libc++abi-18-dev-wasm32`, `libclang-rt-18-dev-wasm32`). Output: `build-web/site/`.
+The browser cannot run the FTC Java runtime, so the human robot uses a built-in mecanum TeleOp there.

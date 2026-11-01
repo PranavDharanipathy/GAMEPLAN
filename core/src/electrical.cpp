@@ -1,3 +1,4 @@
+#include "gameplan/error.hpp"
 #include "gameplan/electrical.hpp"
 
 #include <cmath>
@@ -19,13 +20,14 @@ Provenance readProv(const Json& j) {
 template <class M, class T>
 const T& find(const M& m, const std::string& id, const char* what) {
     auto it = m.find(id);
-    if (it == m.end()) throw std::runtime_error(std::string("unknown ") + what + ": " + id);
+    if (it == m.end()) GP_THROW(std::runtime_error(std::string("unknown ") + what + ": " + id));
     return it->second;
 }
 }  // namespace
 
-Components Components::load(const std::string& path) {
-    std::string text = readTextFile(path);
+Components Components::load(const std::string& path) { return fromText(readTextFile(path)); }
+
+Components Components::fromText(const std::string& text) {
     Json j = Json::parse(text);
     Components c;
     c.sourceHash = sha256Hex(text);

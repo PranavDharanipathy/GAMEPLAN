@@ -1,3 +1,4 @@
+#include "gameplan/error.hpp"
 #include "gameplan/uncertainty.hpp"
 
 #include <cmath>
@@ -48,7 +49,7 @@ ULevel parseULevel(const std::string& s) {
     if (s == "nominal") return ULevel::Nominal;
     if (s == "realistic") return ULevel::Realistic;
     if (s == "extreme") return ULevel::Extreme;
-    throw std::runtime_error("unknown uncertainty level: " + s);
+    GP_THROW(std::runtime_error("unknown uncertainty level: " + s));
 }
 
 const std::vector<std::string>& UncertaintyConfig::subsystems() {

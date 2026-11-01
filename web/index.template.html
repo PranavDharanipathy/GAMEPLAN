@@ -1,0 +1,414 @@
+<title>GamePlan BIOBUZZ Drive</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen arena. Full-bleed 3D field from the driver's spot; scoreboard strip on top;
+   pre-match and post-match panels slide over the field. Single dark "arena under lights" look. */
+:root {
+  --bg: #0d1013;          /* arena floor beyond the field */
+  --panel: #161b20;
+  --panel-2: #1d242b;
+  --line: #2b343d;
+  --fg: #e9ecef;
+  --muted: #8e9aa5;
+  --pollen: #f2c230;      /* POLLEN yellow, the accent */
+  --red: #e0453a;
+  --blue: #3b82e6;
+  --ok: #4fbf7a;
+  --warn: #f0a33a;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; overflow: hidden; }
+#app { position: relative; height: 100%; }
+#view { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.hud { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 6px 18px;
+  background: rgba(13,16,19,.78); border: 1px solid var(--line); border-radius: 6px; font-family: var(--font-display); pointer-events: none; }
+.hud .score { font-size: 38px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 2.6ch; text-align: center; }
+.hud .score.red { color: var(--red); } .hud .score.blue { color: var(--blue); }
+.hud .clock { text-align: center; line-height: 1; }
+.hud .timer { font-size: 44px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.hud .phase { font-size: 13px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+.conn { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
+  font-family: var(--font-display); font-size: 15px; letter-spacing: .08em; text-transform: uppercase; display: flex; gap: 8px; align-items: center; pointer-events: none; }
+.conn i { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.conn.bad i { background: var(--warn); }
+.keys { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted); background: rgba(13,16,19,.7); padding: 6px 9px; border-radius: 4px; max-width: calc(100% - 32px); }
+.viewbtn { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); }
+button { font: 600 14px var(--font-body); color: var(--bg); background: var(--pollen); border: 0; border-radius: 4px; padding: 9px 16px; cursor: pointer; }
+button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--pollen); outline-offset: 2px; }
+.sheet { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8,10,12,.72);
+  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow-y: auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; width: min(760px, 100%); padding: 22px 24px; display: grid; gap: 18px; }
+h1 { font-family: var(--font-display); font-size: 34px; font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 span { color: var(--pollen); }
+h2 { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin: 0; letter-spacing: .02em; }
+.lede { color: var(--muted); margin: 0; max-width: 62ch; line-height: 1.5; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 18px; }
+label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+input, select, textarea { font: 14px var(--font-body); color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; text-transform: none; letter-spacing: 0; }
+textarea { resize: vertical; min-height: 56px; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { flex: 1; background: transparent; color: var(--muted); border-radius: 0; padding: 8px; font-weight: 500; }
+.seg button[aria-pressed="true"].r { background: var(--red); color: #fff; }
+.seg button[aria-pressed="true"].b { background: var(--blue); color: #fff; }
+.seg button[aria-pressed="true"].n { background: var(--panel-2); color: var(--fg); }
+.note { font-size: 12.5px; color: var(--muted); line-height: 1.5; border-left: 2px solid var(--line); padding-left: 10px; margin: 0; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.parsed { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); min-height: 1.2em; }
+.parsed b { color: var(--pollen); font-weight: 500; }
+.toast { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; max-width: calc(100% - 32px); }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 13px; }
+td, th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+.bigscore { display: flex; gap: 22px; align-items: baseline; font-family: var(--font-display); font-weight: 700; }
+.bigscore .r { color: var(--red); font-size: 54px; } .bigscore .b { color: var(--blue); font-size: 54px; } .bigscore .vs { color: var(--muted); font-size: 22px; }
+canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-radius: 4px; display: block; }
+.tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+@media (max-width: 520px) { .hud .score { font-size: 28px; } .hud .timer { font-size: 32px; } .keys { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="app">
+  <canvas id="view" aria-label="FTC BIOBUZZ field seen from the driver station"></canvas>
+  <div class="conn" id="conn" hidden><i></i><span id="connText">Connected</span></div>
+  <div class="hud" id="hud" hidden>
+    <div class="score red" id="sRed">0</div>
+    <div class="clock"><div class="timer" id="timer">2:30</div><div class="phase" id="phase">Pre-match</div></div>
+    <div class="score blue" id="sBlue">0</div>
+  </div>
+  <div class="keys" id="keys" hidden>WASD drive · Q/E turn · Shift intake · C reverse · R spin launcher · Space feed · I/K hood · drag or arrows to look</div>
+  <button class="ghost viewbtn" id="viewBtn" hidden>Overhead view</button>
+
+  <div class="sheet" id="setup">
+    <form class="card" id="setupForm">
+      <div>
+        <h1>BIOBUZZ <span>Drive</span></h1>
+        <p class="lede">Stand in the alliance area and drive a full 2:38 match: 30 s AUTO, 8 s transition, 2:00 TELEOP. Physics, battery sag, HIVE tips, FLOWER ownership and fouls come from the GamePlan simulation core, running in your browser.</p>
+      </div>
+      <div class="grid">
+        <label>Alliance
+          <div class="seg" role="group" aria-label="Alliance"><button type="button" class="r" id="aRed" aria-pressed="true">Red</button><button type="button" class="b" id="aBlue" aria-pressed="false">Blue</button></div>
+        </label>
+        <label>Mode
+          <div class="seg" role="group" aria-label="Mode"><button type="button" class="n" id="mComp" aria-pressed="true">Competition</button><button type="button" class="n" id="mPrac" aria-pressed="false">Practice</button></div>
+        </label>
+        <label for="stand">Where you stand <input id="stand" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+        <label for="eye">Eye height (m) <input id="eye" type="number" min="1.0" max="2.1" step="0.05" value="1.65"></label>
+        <label for="fov">Field of view (°) <input id="fov" type="number" min="50" max="110" step="1" value="75"></label>
+        <label for="diff">AI skill <select id="diff"><option value="0.3">Rookie</option><option value="0.6" selected>Regional</option><option value="0.9">Worlds</option></select></label>
+        <label for="opp">Opponent style <select id="opp"><option value="aggressive">Aggressive scorers</option><option value="defensive">Defensive</option><option value="cautious">Cautious</option><option value="inconsistent">Mechanically inconsistent</option><option value="coordinated">Highly coordinated</option><option value="rookie">Inexperienced</option></select></label>
+        <label for="seed">Match seed <input id="seed" type="number" min="1" value="7"></label>
+      </div>
+      <label for="instr">Instruction for your alliance partner
+        <textarea id="instr" placeholder="e.g. Prioritize collecting POLLEN. Stay out of my way while I operate the intake.">Stay out of my way while I operate the intake</textarea>
+      </label>
+      <div class="parsed" id="parsed" aria-live="polite"></div>
+      <p class="note" id="modeNote"><span id="modeText">Competition: your robot sits still during AUTO (no autonomous program in the browser build), you drive in TELEOP.</span> The browser cannot run your team's Java code; your robot uses a built-in mecanum TeleOp. Desktop GamePlan runs real FTC code.</p>
+      <div class="row">
+        <span class="parsed" id="loadState">Loading simulation…</span>
+        <button type="submit" id="startBtn" disabled>Start match</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast" hidden>
+    <span>Match report ready</span>
+    <button type="button" id="openReport">Open</button>
+    <button type="button" class="ghost" id="dismiss">Dismiss</button>
+  </div>
+
+  <div class="sheet" id="report" hidden>
+    <div class="card" id="reportCard"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="application/json" id="seasonJson">/*SEASON_JSON*/</script>
+<script type="application/json" id="compsJson">/*COMPONENTS_JSON*/</script>
+<script type="application/json" id="robotJson">/*ROBOT_JSON*/</script>
+<script>/*WASM_LOADER*/</script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const season = JSON.parse($("seasonJson").textContent);
+  const state = { alliance: "red", mode: "competition", sim: null, running: false, overhead: false, elec: [], pad: null };
+  let wasmBytes = null;
+
+  // ---------- setup form ----------
+  const seg = (a, b, key, va, vb, after) => {
+    $(a).onclick = () => { state[key] = va; $(a).setAttribute("aria-pressed", "true"); $(b).setAttribute("aria-pressed", "false"); after && after(); };
+    $(b).onclick = () => { state[key] = vb; $(b).setAttribute("aria-pressed", "true"); $(a).setAttribute("aria-pressed", "false"); after && after(); };
+  };
+  seg("aRed", "aBlue", "alliance", "red", "blue");
+  seg("mComp", "mPrac", "mode", "competition", "practice", () => {
+    $("modeText").textContent = state.mode === "competition"
+      ? "Competition: your robot sits still during AUTO (no autonomous program in the browser build), you drive in TELEOP."
+      : "Practice: you may drive during AUTO. Results are labelled practice and are not competition-accurate.";
+  });
+  const showParse = () => {
+    if (!state.sim) return;
+    const d = state.sim.parseInstruction($("instr").value);
+    $("parsed").innerHTML = d.matched.length
+      ? d.matched.map((m) => "<b>✓</b> " + m.replace(/</g, "&lt;")).join("<br>")
+      : (d.text ? "Not understood by the partner AI yet; it will play its default strategy. Try phrases like \"defend\", \"prioritize pollen\", \"stay out of my way\", \"do nothing\"." : "");
+  };
+  $("instr").addEventListener("input", showParse);
+
+  fetch("gameplan.wasm").then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+    .then(async (b) => { wasmBytes = b; state.sim = await GamePlanWasm.create(b, (l) => console.log(l)); $("loadState").textContent = "Simulation ready"; $("startBtn").disabled = false; showParse(); })
+    .catch((e) => { $("loadState").textContent = "Could not load the simulation (" + e.message + "). Reload the page to retry."; });
+
+  // ---------- 3D scene (GamePlan field frame -> three: x, z, -y) ----------
+  const canvas = $("view");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d1013);
+  scene.fog = new THREE.Fog(0x0d1013, 9, 22);
+  const camera = new THREE.PerspectiveCamera(75, 1, 0.05, 60);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(2, 8, 4); scene.add(sun);
+  const T = (x, y, z) => new THREE.Vector3(x, z, -y);
+  const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.8 }, o));
+  const F = season.field, H = F.halfSize_m;
+  const add = (geo, m, p) => { const o = new THREE.Mesh(geo, m); o.position.copy(p); scene.add(o); return o; };
+  // tiles with seams
+  const tileCanvas = document.createElement("canvas"); tileCanvas.width = tileCanvas.height = 512;
+  const tc = tileCanvas.getContext("2d"); tc.fillStyle = "#5d6064"; tc.fillRect(0, 0, 512, 512);
+  tc.strokeStyle = "#4a4c50"; tc.lineWidth = 3; for (let i = 0; i <= 6; i++) { tc.beginPath(); tc.moveTo(i * 512 / 6, 0); tc.lineTo(i * 512 / 6, 512); tc.stroke(); tc.beginPath(); tc.moveTo(0, i * 512 / 6); tc.lineTo(512, i * 512 / 6); tc.stroke(); }
+  const floor = add(new THREE.PlaneGeometry(2 * H, 2 * H), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(tileCanvas), roughness: 0.95 }), T(0, 0, 0));
+  floor.rotation.x = -Math.PI / 2;
+  add(new THREE.PlaneGeometry(14, 14), mat(0x15191d), T(0, 0, -0.01)).rotation.x = -Math.PI / 2;
+  const wallM = new THREE.MeshStandardMaterial({ color: 0xbfd3e6, transparent: true, opacity: 0.18, roughness: 0.2 });
+  const railM = mat(0x9aa4ad, { metalness: 0.5 });
+  [[0, H], [0, -H], [H, 0], [-H, 0]].forEach(([x, y]) => {
+    const along = x === 0, L = 2 * H + 0.05, h = F.perimeter.wallHeight_m;
+    add(new THREE.BoxGeometry(along ? L : 0.02, h, along ? 0.02 : L), wallM, T(x, y, h / 2));
+    add(new THREE.BoxGeometry(along ? L : 0.04, 0.03, along ? 0.04 : L), railM, T(x, y, h));
+  });
+  const zone = (b, color, z = 0.002, op = 0.85) => {
+    const w = b.xMax - b.xMin, d = b.yMax - b.yMin;
+    const m = add(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op }), T((b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, z));
+    m.rotation.x = -Math.PI / 2; return m;
+  };
+  const outline = (b, color) => { const t = 0.025; [[b.xMin, b.yMin, b.xMax, b.yMin + t], [b.xMin, b.yMax - t, b.xMax, b.yMax], [b.xMin, b.yMin, b.xMin + t, b.yMax], [b.xMax - t, b.yMin, b.xMax, b.yMax]].forEach(([a, c, e, d]) => zone({ xMin: a, yMin: c, xMax: e, yMax: d }, color, 0.003, 1)); };
+  outline(F.loadingZones.red, 0xe0453a); outline(F.loadingZones.blue, 0x3b82e6);
+  zone(F.gardens.red, 0xe0453a, 0.003, 1); zone(F.gardens.blue, 0x3b82e6, 0.003, 1);
+  zone(F.allianceAreas.red, 0x2a1715, 0.001, 1); zone(F.allianceAreas.blue, 0x141e2c, 0.001, 1);
+  outline(F.allianceAreas.red, 0xe0453a); outline(F.allianceAreas.blue, 0x3b82e6);
+  // HIVE frame legs
+  const legM = mat(0xb9c0c7, { metalness: 0.6, roughness: 0.4 });
+  F.hiveFrame.legs.forEach((l) => {
+    const a = T(...l.base), b = T(...l.apex), len = a.distanceTo(b);
+    const m = add(new THREE.CylinderGeometry(F.hiveFrame.legRadius_m, F.hiveFrame.legRadius_m, len, 10), legM, a.clone().add(b).multiplyScalar(0.5));
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  });
+  add(new THREE.CylinderGeometry(0.02, 0.02, F.hiveFrame.width_m, 10), legM, T(0, 0, F.hiveFrame.pivotHeight_m)).rotation.z = Math.PI / 2;
+  // FLOWERS
+  const flowerM = new THREE.MeshStandardMaterial({ color: 0xe8edf2, transparent: true, opacity: 0.35, roughness: 0.3 });
+  const fg = F.flowerGeometry;
+  F.flowers.forEach((f) => {
+    add(new THREE.CylinderGeometry(fg.outerRadius_m, fg.outerRadius_m, fg.topHeight_m, 16, 1, true), flowerM, T(f.axis[0], f.axis[1], fg.topHeight_m / 2));
+    add(new THREE.TorusGeometry(fg.topOpeningDiameter_m / 2 + 0.01, 0.008, 6, 20), mat(0x6cc070), T(f.axis[0], f.axis[1], fg.topHeight_m)).rotation.x = Math.PI / 2;
+  });
+  // CELLS (posed each frame from the sim)
+  const cells = [0, 1, 2, 3].map((i) => add(new THREE.BoxGeometry(0.508, 0.30, 0.356), new THREE.MeshStandardMaterial({ color: i < 2 ? 0xa0332b : 0x2b5fb0, transparent: true, opacity: 0.7 }), T(0, 0, 1)));
+  // robots and scoring elements
+  const robots = [];
+  const ball = new THREE.SphereGeometry(1, 14, 10);
+  const pollenIM = new THREE.InstancedMesh(ball, mat(0xf2c230, { roughness: 0.55 }), 64);
+  const redIM = new THREE.InstancedMesh(ball, mat(0xd8392f, { roughness: 0.55 }), 32);
+  const blueIM = new THREE.InstancedMesh(ball, mat(0x2f6fd8, { roughness: 0.55 }), 32);
+  [pollenIM, redIM, blueIM].forEach((m) => { m.count = 0; scene.add(m); });
+  const dummy = new THREE.Object3D();
+  function ensureRobots(n, fr, base) {
+    while (robots.length < n) {
+      const i = robots.length, o = base + i * 9;
+      const L = fr[o + 6], W = fr[o + 7], Hh = fr[o + 8];
+      const g = new THREE.Group();
+      const red = fr[o + 3] === 0;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(L, Hh * 0.55, W), mat(0x2e3439, { roughness: 0.6 }));
+      body.position.y = Hh * 0.3; g.add(body);
+      const bump = new THREE.Mesh(new THREE.BoxGeometry(L + 0.02, 0.07, W + 0.02), mat(red ? 0xe0453a : 0x3b82e6));
+      bump.position.y = 0.05; g.add(bump);
+      const front = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, W * 0.8), mat(0xf2c230)); front.position.set(L / 2, 0.12, 0); g.add(front);
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(L * 0.35, Hh * 0.45, W * 0.5), mat(0x444c53)); tower.position.set(-L * 0.1, Hh * 0.78, 0); g.add(tower);
+      scene.add(g); robots.push(g);
+    }
+  }
+  function draw(fr) {
+    const nR = fr[4], nE = fr[5], nC = fr[6];
+    let o = 7;
+    ensureRobots(nR, fr, 7);
+    for (let i = 0; i < nR; i++, o += 9) {
+      const g = robots[i]; g.position.copy(T(fr[o], fr[o + 1], 0)); g.rotation.y = fr[o + 2];
+      g.rotation.z = fr[o + 5] ? 1.2 : 0;
+    }
+    pollenIM.count = redIM.count = blueIM.count = 0;
+    for (let i = 0; i < nE; i++, o += 6) {
+      if (!fr[o + 5]) continue;
+      const k = fr[o + 3], im = k === 0 ? pollenIM : k === 1 ? redIM : blueIM;
+      dummy.position.copy(T(fr[o], fr[o + 1], fr[o + 2])); const r = fr[o + 4]; dummy.scale.set(r, r, r); dummy.updateMatrix();
+      im.setMatrixAt(im.count++, dummy.matrix);
+    }
+    [pollenIM, redIM, blueIM].forEach((m) => { m.instanceMatrix.needsUpdate = true; });
+    for (let i = 0; i < nC; i++, o += 5) {
+      const c = cells[i]; c.position.copy(T(fr[o], fr[o + 1], fr[o + 2] + (fr[o + 3] ? 0.12 : -0.05)));
+      c.material.opacity = fr[o + 3] ? 0.85 : 0.45;
+    }
+  }
+
+  // ---------- driver camera: a person in the alliance area; never follows the robot ----------
+  const look = { yaw: 0, pitch: -0.32, baseYaw: 0, drag: null };
+  function placeDriver() {
+    const A = F.allianceAreas[state.alliance], s = +$("stand").value;
+    const y = A.yMin + (A.yMax - A.yMin) * s;
+    const x = state.alliance === "red" ? -H - 0.55 : H + 0.55;
+    camera.position.copy(T(x, y, +$("eye").value));
+    look.baseYaw = state.alliance === "red" ? -Math.PI / 2 : Math.PI / 2; look.yaw = look.baseYaw; look.pitch = -0.32;
+    camera.fov = +$("fov").value; camera.updateProjectionMatrix();
+  }
+  function applyLook() {
+    if (state.overhead) { camera.position.set(0, 7.2, 0.01); camera.lookAt(0, 0, 0); return; }
+    look.yaw = Math.max(look.baseYaw - 1.75, Math.min(look.baseYaw + 1.75, look.yaw));
+    look.pitch = Math.max(-1.2, Math.min(0.55, look.pitch));
+    camera.rotation.set(look.pitch, look.yaw, 0, "YXZ");
+  }
+  canvas.addEventListener("pointerdown", (e) => { look.drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointermove", (e) => { if (!look.drag) return; look.yaw -= (e.clientX - look.drag[0]) * 0.004; look.pitch -= (e.clientY - look.drag[1]) * 0.004; look.drag = [e.clientX, e.clientY]; });
+  canvas.addEventListener("pointerup", () => { look.drag = null; });
+  $("viewBtn").onclick = () => { state.overhead = !state.overhead; $("viewBtn").textContent = state.overhead ? "Driver view" : "Overhead view"; if (!state.overhead) placeDriver(); };
+
+  // ---------- input: physical gamepad (FTC semantics) with keyboard fallback ----------
+  const keys = new Set();
+  addEventListener("keydown", (e) => { if (state.running && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { keys.add(e.code); if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault(); } });
+  addEventListener("keyup", (e) => keys.delete(e.code));
+  const DZ = 0.06;
+  const dz = (v) => (Math.abs(v) < DZ ? 0 : (v - Math.sign(v) * DZ) / (1 - DZ));
+  function readPad(dt) {
+    const p = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, buttons: 0 };
+    let gp = null;
+    try { gp = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find((g) => g && g.connected); } catch (_) {}
+    if (gp) {
+      p.lx = dz(gp.axes[0] || 0); p.ly = dz(gp.axes[1] || 0); p.rx = dz(gp.axes[2] || 0); p.ry = dz(gp.axes[3] || 0);
+      const b = (i) => gp.buttons[i] && gp.buttons[i].pressed;
+      p.lt = gp.buttons[6] ? gp.buttons[6].value : 0; p.rt = gp.buttons[7] ? gp.buttons[7].value : 0;
+      [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [12, 6], [13, 7], [14, 8], [15, 9], [8, 10], [9, 11]].forEach(([i, bit]) => { if (b(i)) p.buttons |= 1 << bit; });
+    }
+    if (keys.has("KeyW")) p.ly = -1; if (keys.has("KeyS")) p.ly = 1;
+    if (keys.has("KeyA")) p.lx = -1; if (keys.has("KeyD")) p.lx = 1;
+    if (keys.has("KeyQ")) p.rx = -0.7; if (keys.has("KeyE")) p.rx = 0.7;
+    if (keys.has("ShiftLeft") || keys.has("ShiftRight")) p.rt = 1;
+    if (keys.has("KeyC")) p.lt = 1;
+    if (keys.has("KeyR")) p.buttons |= 1 << 5;
+    if (keys.has("Space")) p.buttons |= 1;
+    if (keys.has("KeyI")) p.buttons |= 1 << 6;
+    if (keys.has("KeyK")) p.buttons |= 1 << 7;
+    if (keys.has("ArrowLeft")) look.yaw += dt * 1.4; if (keys.has("ArrowRight")) look.yaw -= dt * 1.4;
+    if (keys.has("ArrowUp")) look.pitch += dt * 1.0; if (keys.has("ArrowDown")) look.pitch -= dt * 1.0;
+    return p;
+  }
+
+  // ---------- match loop ----------
+  $("setupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    state.sim = await GamePlanWasm.create(wasmBytes, (l) => console.log(l));   // fresh world per match
+    const robot = $("robotJson").textContent;
+    state.sim.init($("seasonJson").textContent, $("compsJson").textContent, robot, robot, {
+      seed: +$("seed").value || 1, alliance: state.alliance, mode: state.mode, difficulty: +$("diff").value,
+      opponentPersonality: $("opp").value, partnerPersonality: "coordinated", partnerInstruction: $("instr").value, uncertainty: "realistic" });
+    state.elec = []; state.running = true; state.overhead = false;
+    placeDriver();
+    ["hud", "conn", "keys", "viewBtn"].forEach((id) => { $(id).hidden = false; });
+    $("setup").hidden = true; $("toast").hidden = true; $("report").hidden = true;
+    canvas.focus();
+  });
+  let last = performance.now(), elecT = -1;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (state.running && state.sim) {
+      state.sim.setPad(readPad(dt));
+      const done = state.sim.step(dt);
+      draw(state.sim.frame());
+      const h = state.sim.hud();
+      $("timer").textContent = h.timer; $("phase").textContent = h.phase.replace("_", " ") + (state.mode === "practice" ? " · practice" : "");
+      $("sRed").textContent = h.red; $("sBlue").textContent = h.blue;
+      $("connText").textContent = h.connection; $("conn").classList.toggle("bad", h.connection !== "Connected");
+      const e = state.sim.elec();
+      if (e[0] - elecT >= 0.1) { elecT = e[0]; state.elec.push(Array.from(e)); }   // stored now, shown only after the match
+      if (done) finish();
+    }
+    applyLook();
+    resize();
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
+      renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+    }
+  }
+  function finish() {
+    state.running = false;
+    $("keys").hidden = true;
+    $("toast").hidden = false;
+  }
+  $("dismiss").onclick = () => { $("toast").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtn"].forEach((id) => { $(id).hidden = true; }); };
+  $("openReport").onclick = () => { $("toast").hidden = true; renderReport(); $("report").hidden = false; };
+
+  // ---------- post-match report ----------
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function chart(cv, series, unit) {
+    const dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth * dpr, Hh = cv.clientHeight * dpr;
+    cv.width = W; cv.height = Hh; const c = cv.getContext("2d");
+    const pad = { l: 44 * dpr, r: 10 * dpr, t: 12 * dpr, b: 22 * dpr };
+    const xs = state.elec.map((r) => r[0]);
+    let lo = Infinity, hi = -Infinity; series.forEach((s) => state.elec.forEach((r) => { lo = Math.min(lo, r[s.i]); hi = Math.max(hi, r[s.i]); }));
+    if (!isFinite(lo)) return; if (hi - lo < 1e-6) { hi += 1; lo -= 1; } const m = (hi - lo) * 0.08; lo -= m; hi += m;
+    const X = (x) => pad.l + (x - xs[0]) / Math.max(1e-6, xs[xs.length - 1] - xs[0]) * (W - pad.l - pad.r);
+    const Y = (y) => pad.t + (1 - (y - lo) / (hi - lo)) * (Hh - pad.t - pad.b);
+    c.font = `${11 * dpr}px IBM Plex Mono, monospace`; c.fillStyle = "#8e9aa5"; c.strokeStyle = "#2b343d"; c.lineWidth = dpr;
+    for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, y = Y(v); c.beginPath(); c.moveTo(pad.l, y); c.lineTo(W - pad.r, y); c.stroke(); c.fillText(v.toFixed(1), 4 * dpr, y + 4 * dpr); }
+    c.fillText(unit, 4 * dpr, 10 * dpr);
+    [38, 98, 138].forEach((t) => { const x = X(t); if (x > pad.l && x < W - pad.r) { c.setLineDash([3 * dpr, 4 * dpr]); c.beginPath(); c.moveTo(x, pad.t); c.lineTo(x, Hh - pad.b); c.stroke(); c.setLineDash([]); } });
+    series.forEach((s) => { c.strokeStyle = s.color; c.lineWidth = 1.6 * dpr; c.beginPath(); state.elec.forEach((r, i) => { const x = X(r[0]), y = Y(r[s.i]); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke(); });
+  }
+  function renderReport() {
+    const r = state.sim.result(), u = r.userRobotElectrical;
+    const rows = (a) => Object.entries(r[a].breakdown).map(([k, v]) => `<tr><td>${esc(k.replace(/_/g, " "))}</td><td>${v}</td></tr>`).join("") + `<tr><td>Foul credit</td><td>${r[a].foulCredit}</td></tr>`;
+    const viol = r.violations.length ? r.violations.map((v) => `<tr><td>${v.matchTime.toFixed(1)} s</td><td>${esc(v.rule)} <span class="tag">${v.judgment ? "judgment" : "objective"}</span></td><td>${esc(v.offender)}</td><td>${esc(v.penalty)}</td><td>${esc(v.rationale)}</td></tr>`).join("") : `<tr><td colspan="5">No violations assessed.</td></tr>`;
+    const motors = u.motors.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.energy_J.toFixed(0)}</td><td>${m.peak_A.toFixed(1)}</td><td>${m.winding_C.toFixed(0)}</td></tr>`).join("");
+    const pd = r.partnerDirectives || { matched: [], notUnderstood: [] };
+    $("reportCard").innerHTML = `
+      <div class="row"><h1>Match report</h1><span class="tag">${esc(season.manual.teamUpdate)} · ${esc(season.rulesEngineVersion)} · seed ${+$("seed").value}${state.mode === "practice" ? " · PRACTICE" : ""}</span></div>
+      <div class="bigscore"><span class="r">${r.red.total}</span><span class="vs">vs</span><span class="b">${r.blue.total}</span><span class="tag">RP red ${r.red.rp} · blue ${r.blue.rp}</span></div>
+      <div class="grid"><div class="tbl-wrap"><table><tr><th>Red</th><th>pts</th></tr>${rows("red")}</table></div><div class="tbl-wrap"><table><tr><th>Blue</th><th>pts</th></tr>${rows("blue")}</table></div></div>
+      <h2>Violations</h2><div class="tbl-wrap"><table><tr><th>Time</th><th>Rule</th><th>Alliance</th><th>Penalty</th><th>Basis</th></tr>${viol}</table></div>
+      <h2>Your robot's electrical system</h2>
+      <p class="lede">Collected during the match and shown only now. Min hub bus ${u.minHubBusV.toFixed(2)} V, peak battery current ${u.peakBatteryA.toFixed(1)} A, ${(u.energy_J / 1000).toFixed(2)} kJ used, final charge ${(u.finalSoc * 100).toFixed(1)} %, ${r.distance_m.toFixed(1)} m driven. Values are calculated by the coupled model; component data carries provenance in the GamePlan repository.</p>
+      <canvas class="chart" id="cV" aria-label="Battery terminal and hub bus voltage over the match"></canvas>
+      <canvas class="chart" id="cI" aria-label="Battery current over the match"></canvas>
+      <div class="tbl-wrap"><table><tr><th>Motor</th><th>Energy J</th><th>Peak A</th><th>Winding °C</th></tr>${motors}</table></div>
+      <h2>Alliance partner</h2>
+      <p class="lede">${pd.matched.length ? "Followed: " + pd.matched.map(esc).join("; ") : "Played its default strategy."}${pd.notUnderstood && pd.notUnderstood.length ? " Not understood: " + pd.notUnderstood.map(esc).join("; ") : ""}</p>
+      <div class="row"><span class="parsed">Dashed lines: TELEOP start, FLOWER unlock (1:00), final 20 s.</span><button type="button" id="again">Set up another match</button></div>`;
+    chart($("cV"), [{ i: 1, color: "#f2c230" }, { i: 3, color: "#4fbf7a" }], "V  battery · hub");
+    chart($("cI"), [{ i: 2, color: "#e0453a" }], "A  battery");
+    $("again").onclick = () => { $("report").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtn"].forEach((id) => { $(id).hidden = true; }); };
+  }
+  placeDriver();
+  requestAnimationFrame(frame);
+})();
+</script>

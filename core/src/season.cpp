@@ -1,3 +1,4 @@
+#include "gameplan/error.hpp"
 #include "gameplan/season.hpp"
 
 #include <stdexcept>
@@ -7,7 +8,7 @@ namespace gp {
 Alliance parseAlliance(const std::string& s) {
     if (s == "red") return Alliance::Red;
     if (s == "blue") return Alliance::Blue;
-    throw std::runtime_error("unknown alliance: " + s);
+    GP_THROW(std::runtime_error("unknown alliance: " + s));
 }
 
 namespace {
@@ -27,8 +28,9 @@ std::string SeasonDef::tileName(Vec2 p) const {
     return std::string(1, char('A' + col)) + std::to_string(row + 1);
 }
 
-SeasonDef SeasonDef::load(const std::string& path) {
-    std::string text = readTextFile(path);
+SeasonDef SeasonDef::load(const std::string& path) { return fromText(readTextFile(path), path); }
+
+SeasonDef SeasonDef::fromText(const std::string& text, const std::string& path) {
     SeasonDef s;
     s.raw = Json::parse(text);
     const Json& j = s.raw;
