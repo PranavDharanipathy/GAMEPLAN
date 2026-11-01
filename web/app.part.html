@@ -13,11 +13,11 @@
 <script type="module">
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 
 const $ = (id) => document.getElementById(id);
 const season = JSON.parse($("seasonJson").textContent);
@@ -55,41 +55,62 @@ const canvas = $("view");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.82;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-{   // venue backdrop: dark hall with a faint warm glow from the stands and lighting truss
-  const c = document.createElement("canvas"); c.width = 16; c.height = 256; const g = c.getContext("2d");
-  const gr = g.createLinearGradient(0, 0, 0, 256);
-  gr.addColorStop(0, "#030405"); gr.addColorStop(0.45, "#0b0e12"); gr.addColorStop(0.62, "#1a1d22"); gr.addColorStop(0.7, "#0e1013"); gr.addColorStop(1, "#08090b");
-  g.fillStyle = gr; g.fillRect(0, 0, 16, 256);
+// ================= night sky (static), fog depth for the forest =================
+{
+  const W = 2048, Hs = 1024, c = document.createElement("canvas"); c.width = W; c.height = Hs; const g = c.getContext("2d");
+  const gr = g.createLinearGradient(0, 0, 0, Hs);
+  gr.addColorStop(0, "#02040a"); gr.addColorStop(0.35, "#061022"); gr.addColorStop(0.47, "#0f1a2c"); gr.addColorStop(0.5, "#141a20");
+  gr.addColorStop(0.53, "#07090a"); gr.addColorStop(1, "#030404");
+  g.fillStyle = gr; g.fillRect(0, 0, W, Hs);
+  let sd = 97; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 2600; i++) {   // stars, denser and brighter toward the zenith
+    const y = Math.pow(rnd(), 1.6) * Hs * 0.47, x = rnd() * W, m = rnd();
+    g.fillStyle = `rgba(${220 + 35 * rnd() | 0},${225 + 30 * rnd() | 0},255,${0.25 + 0.75 * m * (1 - y / (Hs * 0.5))})`;
+    g.fillRect(x, y, m > 0.97 ? 2 : 1, m > 0.97 ? 2 : 1);
+  }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.mapping = THREE.EquirectangularReflectionMapping;
   scene.background = t;
 }
-scene.fog = new THREE.Fog(0x07090b, 14, 34);
-const camera = new THREE.PerspectiveCamera(75, 1, 0.03, 80);
-// image-based lighting: a neutral indoor environment for reflections on metal, plastic and polycarbonate
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.fog = new THREE.FogExp2(0x070b10, 0.03);
+const camera = new THREE.PerspectiveCamera(75, 1, 0.03, 260);
 // GamePlan field frame (x to blue wall, y away from audience, z up) inside the three.js world (y up)
 const gp = new THREE.Group(); gp.rotation.x = -Math.PI / 2; scene.add(gp);
 const T = (x, y, z) => new THREE.Vector3(x, z, -y);
 const F = season.field, H = F.halfSize_m;
 
-// venue lighting: an overhead key (crisp contact shadows) + two truss spots + soft sky fill
-const key = new THREE.DirectionalLight(0xfff4e8, 1.7);
-key.position.set(1.4, 9, 2.2); key.castShadow = true;
-Object.assign(key.shadow.camera, { left: -2.7, right: 2.7, top: 2.7, bottom: -2.7, near: 1, far: 20 });
-key.shadow.bias = -0.00025; key.shadow.normalBias = 0.015; key.shadow.radius = 3;
-scene.add(key, key.target);
-const spots = [[-5, 6.5, 4], [5, 6.5, -4]].map(([x, y, z]) => {
-  const s = new THREE.SpotLight(0xffffff, 150, 0, 0.62, 0.55, 2);
-  s.position.set(x, y, z); s.target.position.set(0, 0, 0); s.castShadow = true;
-  s.shadow.bias = -0.0002; s.shadow.normalBias = 0.02; s.shadow.radius = 4;
-  scene.add(s, s.target); return s;
-});
-scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x1a1c1e, 0.2));
+// ================= arena lighting rig (light from above, like a championship field) =================
+// A square truss 6.4 m above the field carries the fixtures. They light the field, the drive team
+// areas and a little beyond; the forest outside only gets faint moonlight.
+const RIG_H = 6.4, RIG = 3.9;
+const pmrem = new THREE.PMREMGenerator(renderer);
+{   // environment for reflections = the same surroundings: dark woods, bright fixtures overhead
+  const es = new THREE.Scene(); es.background = new THREE.Color(0x030507);
+  const lamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.97, 0.9).multiplyScalar(30) });
+  for (const x of [-2.6, 0, 2.6]) for (const z of [-2.6, 0, 2.6]) {
+    const m = new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), lamp); m.position.set(x, RIG_H, z); m.rotation.x = Math.PI / 2; es.add(m);
+  }
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: 0x15171a })); ground.rotation.x = -Math.PI / 2; es.add(ground);
+  const field = new THREE.Mesh(new THREE.PlaneGeometry(3.7, 3.7), new THREE.MeshBasicMaterial({ color: 0x4a4c50 })); field.rotation.x = -Math.PI / 2; field.position.y = 0.01; es.add(field);
+  scene.environment = pmrem.fromScene(es, 0.03).texture;
+}
+RectAreaLightUniformsLib.init();
+const fill = new THREE.RectAreaLight(0xfff3e2, 1.4, 4.2, 4.2);   // the diffuse glow of the whole rig
+fill.position.set(0, RIG_H - 0.3, 0); fill.lookAt(0, 0, 0); scene.add(fill);
+const fixtures = [];
+for (const [x, z] of [[-RIG, -RIG], [RIG, -RIG], [-RIG, RIG], [RIG, RIG], [0, -RIG], [0, RIG], [-RIG, 0], [RIG, 0]]) {
+  const s = new THREE.SpotLight(0xfff1df, 40, 0, 0.5, 0.45, 2);
+  s.position.set(x, RIG_H, z);
+  s.target.position.set(-x * 0.18, 0, -z * 0.18);              // cross-lighting softens shadows
+  s.shadow.bias = -0.00015; s.shadow.normalBias = 0.02; s.shadow.radius = 5;
+  s.shadow.camera.near = 2; s.shadow.camera.far = 14;
+  scene.add(s, s.target); fixtures.push(s);
+}
+const moon = new THREE.DirectionalLight(0x9db4dc, 0.45); moon.position.set(-30, 40, 20); scene.add(moon);
+scene.add(new THREE.HemisphereLight(0x2c3f5e, 0x0c0e0a, 0.22));
 
 // post-processing: MSAA scene target, ground-truth ambient occlusion (Ultra), tone mapping
 let composer = null, aoPass = null;
@@ -106,9 +127,13 @@ function applyQuality(q) {
   state.gfx = q;
   const ultra = q === "ultra", bal = q === "balanced";
   renderer.setPixelRatio(Math.min(bal ? 1 : 2, window.devicePixelRatio || 1));
-  key.shadow.mapSize.set(ultra ? 4096 : bal ? 1024 : 2048, ultra ? 4096 : bal ? 1024 : 2048);
-  spots.forEach((s) => { s.castShadow = !bal; s.shadow.mapSize.set(ultra ? 2048 : 1024, ultra ? 2048 : 1024); });
-  [key, ...spots].forEach((l) => { if (l.shadow.map) { l.shadow.map.dispose(); l.shadow.map = null; } });
+  // shadow-casting fixtures: 4 (Ultra), 2 (High), 1 (Balanced); the rest light without shadows
+  const casters = ultra ? [0, 3, 1, 2] : bal ? [0] : [0, 3];
+  fixtures.forEach((s, i) => {
+    s.castShadow = casters.includes(i);
+    s.shadow.mapSize.set(ultra ? 2048 : 1024, ultra ? 2048 : 1024);
+    if (s.shadow.map) { s.shadow.map.dispose(); s.shadow.map = null; }
+  });
   if (!composer) buildComposer();
   aoPass.enabled = ultra;
   lastSize = "";
@@ -132,7 +157,13 @@ M.alu = std({ color: 0xc8cdd2, metalness: 1, roughness: 0.32 });
 M.aluDark = std({ color: 0x2c3036, metalness: 0.75, roughness: 0.42 });
 M.steel = std({ color: 0x9da3a8, metalness: 1, roughness: 0.25 });
 M.blackOxide = std({ color: 0x1b1c1e, metalness: 0.8, roughness: 0.45 });
-M.poly = phys({ color: 0xf4f8fb, metalness: 0, roughness: 0.04, transmission: 0.92, thickness: 0.003, ior: 1.585, transparent: true, side: THREE.DoubleSide });
+// clear polycarbonate (perimeter panels, robot guards): refracts what is behind it, faint blue-grey body tint
+M.poly = phys({ color: 0xffffff, metalness: 0, roughness: 0.035, transmission: 1, thickness: 0.0047, ior: 1.585,
+  attenuationColor: new THREE.Color(0xdfe9ee), attenuationDistance: 0.25, specularIntensity: 1, side: THREE.DoubleSide });
+M.poly.userData.noShadow = true;   // clear sheet casts almost no shadow
+// thin frosted plastic sheet (HIVE skins): lets a little light through, scatters it, keeps its colour
+const frosted = (color) => phys({ color, roughness: 0.42, transmission: 0.38, thickness: 0.0016, ior: 1.49,
+  attenuationColor: color, attenuationDistance: 0.02, side: THREE.DoubleSide });
 M.nylonBlack = std({ color: 0x18191a, roughness: 0.55 });
 M.whitePlastic = std({ color: 0xebebe8, roughness: 0.5 });
 M.acm = std({ color: 0xf1f1ee, roughness: 0.38, metalness: 0.05 });
@@ -143,7 +174,7 @@ M.blueSkin = phys({ color: 0x2f6fd8, roughness: 0.3, transmission: 0.35, thickne
 M.redTape = std({ color: 0xc8231c, roughness: 0.85 });
 M.blueTape = std({ color: 0x1c4fbf, roughness: 0.85 });
 M.rubber = std({ color: 0x141414, roughness: 0.82 });
-M.floor = std({ color: 0x17191c, roughness: 0.95, bumpMap: noiseTex(256, 128, 40, 3), bumpScale: 0.4 });
+M.floor = std({ color: 0x1b1d20, roughness: 0.95, bumpMap: noiseTex(256, 128, 40, 3), bumpScale: 0.4 });
 M.floor.bumpMap.repeat.set(30, 30);
 const cadColour = (name) => {   // colour assigned to this part in the official STEP, if any
   const c = CADCOL[name.split("/").pop()];
@@ -157,7 +188,7 @@ function materialFor(name, group) {
   else if (/glass|polycarb/.test(n)) m = M.poly;
   else if (/rivet|screw|bolt|nut|washer|pin\b|quick release/.test(n)) m = /lock nut|black|oxide/.test(n) ? M.blackOxide : M.steel;
   else if (/cable tie|plug|nylon/.test(n)) m = M.nylonBlack;
-  else if (/skin/.test(n)) m = M.whitePlastic;
+  else if (/skin/.test(n)) m = frosted(cadColour(name) || new THREE.Color(0xe6e6e6));
   else if (/goal rib/.test(n)) m = group.includes("red") ? M.redPlastic : M.bluePlastic;
   else if (/acm|panel sticker/.test(n)) m = M.acm;
   else if (/hips|flower|peanut|backstop/.test(n)) m = M.whitePlastic;
@@ -166,7 +197,7 @@ function materialFor(name, group) {
   else if (/flower layer|backstop/.test(n)) m = M.whitePlastic;
   else m = M.alu;
   const cc = cadColour(name);
-  if (cc && m !== M.poly && group !== "tiles") { m = m.clone(); m.color = cc; }   // the designers' part colour
+  if (cc && m !== M.poly && !/skin/.test(n) && group !== "tiles") { m = m.clone(); m.color = cc; }   // the designers' part colour
   return m;
 }
 
@@ -218,7 +249,7 @@ function loadGroup(group, parent) {
       if (!o.isMesh) return;
       const nm = o.name || (o.parent && o.parent.name) || "";
       o.material = materialFor(nm, group);
-      o.castShadow = group !== "tiles" && group !== "tape";
+      o.castShadow = group !== "tiles" && group !== "tape" && !o.material.userData.noShadow;
       o.receiveShadow = true;
       const lk = nm.split("/").pop().toLowerCase().replace(/^am-5888-(red|blue)[12]: /, "");
       if (stickerIds[lk]) { const h = group === "hive_red" ? 0 : 1; const pv = F.hives[h].pivot; applySticker(o, stickerIds[lk], new THREE.Vector3(pv[0], pv[1], pv[2])); }
@@ -269,8 +300,177 @@ function buildTiles() {
 function fallbackField() {   // only if the CAD assets are missing
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 2 * H), M.tile); floor.receiveShadow = true; gp.add(floor);
 }
-const venueFloor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), M.floor);
-venueFloor.position.z = -0.012; venueFloor.receiveShadow = true; gp.add(venueFloor);
+// event floor: rubber mats under the field and the drive team areas, laid on the forest floor
+const mats = new THREE.Mesh(new THREE.BoxGeometry(9.6, 7.4, 0.012), M.floor);
+mats.position.z = -0.018; mats.receiveShadow = true; gp.add(mats);
+buildForest();
+
+// ================= static forest around the clearing =================
+// Everything is generated from a fixed seed (identical every load) and never moves.
+function groundHeight(x, y) {   // flat clearing for the event, gently rolling forest floor beyond
+  const r = Math.hypot(x, y), k = Math.min(1, Math.max(0, (r - 9) / 14));
+  return k * (0.45 * Math.sin(x * 0.17) * Math.cos(y * 0.13) + 0.3 * Math.sin(x * 0.41 + 1.3) * Math.sin(y * 0.37 + 0.7) + 0.12 * Math.sin(x * 1.1 + y * 0.9));
+}
+function canvasTex(size, paint, repeat) {
+  const c = document.createElement("canvas"); c.width = c.height = size; paint(c.getContext("2d"), size);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (repeat) t.repeat.set(repeat, repeat); t.anisotropy = 8; return t;
+}
+function buildForest() {
+  let sd = 4242; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  // forest floor: mixed grass, moss, soil and fallen needles
+  const floorTex = canvasTex(1024, (g, n) => {
+    g.fillStyle = "#2c3320"; g.fillRect(0, 0, n, n);
+    for (let i = 0; i < 26000; i++) {
+      const x = rnd() * n, y = rnd() * n, t = rnd();
+      g.fillStyle = t < 0.45 ? `rgba(${48 + rnd() * 30 | 0},${62 + rnd() * 34 | 0},${28 + rnd() * 14 | 0},0.8)`
+                  : t < 0.75 ? `rgba(${70 + rnd() * 30 | 0},${52 + rnd() * 20 | 0},${34 + rnd() * 14 | 0},0.7)`
+                  : `rgba(${96 + rnd() * 40 | 0},${70 + rnd() * 26 | 0},${40 + rnd() * 16 | 0},0.6)`;
+      g.save(); g.translate(x, y); g.rotate(rnd() * Math.PI); g.fillRect(-0.5, -2 - rnd() * 4, 1 + rnd(), 4 + rnd() * 8); g.restore();
+    }
+  }, 60);
+  const ground = new THREE.PlaneGeometry(320, 320, 220, 220);
+  const gpos = ground.attributes.position;
+  for (let i = 0; i < gpos.count; i++) gpos.setZ(i, groundHeight(gpos.getX(i), gpos.getY(i)) - 0.03);
+  ground.computeVertexNormals();
+  const gmesh = new THREE.Mesh(ground, std({ map: floorTex, roughness: 0.97, bumpMap: noiseTex(512, 128, 120, 21), bumpScale: 1.2, envMapIntensity: 0.25 }));
+  gmesh.material.bumpMap.repeat.set(80, 80); gmesh.receiveShadow = true; gp.add(gmesh);
+
+  const bark = canvasTex(256, (g, n) => {
+    g.fillStyle = "#3a2e24"; g.fillRect(0, 0, n, n);
+    for (let i = 0; i < 900; i++) { const v = 30 + rnd() * 40 | 0; g.fillStyle = `rgba(${v + 12},${v},${v - 6},0.7)`; g.fillRect(rnd() * n, rnd() * n, 1 + rnd() * 3, 10 + rnd() * 50); }
+  });
+  bark.repeat.set(2, 6);
+  const barkM = std({ map: bark, roughness: 1, bumpMap: bark, bumpScale: 3, envMapIntensity: 0.25 });
+  // needle / leaf textures with alpha cut-outs: ragged branch silhouettes instead of smooth solids
+  const needleTex = canvasTex(512, (g, n) => {
+    g.clearRect(0, 0, n, n);
+    for (let i = 0; i < 9000; i++) {
+      const v = rnd(), x = rnd() * n, y = (1 - Math.pow(v, 0.8)) * n * 0.97;   // denser toward the top of each tier
+      const L = 6 + rnd() * 16, a = Math.PI / 2 + (rnd() - 0.5) * 1.3, gl = 120 + rnd() * 90 | 0;
+      g.strokeStyle = `rgb(${gl * 0.45 | 0},${gl},${gl * 0.5 | 0})`; g.lineWidth = 1 + rnd() * 1.5;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke();
+    }
+  });
+  const leafTex = canvasTex(512, (g, n) => {
+    g.clearRect(0, 0, n, n);
+    for (let i = 0; i < 2600; i++) {
+      const x = rnd() * n, y = rnd() * n, gl = 120 + rnd() * 100 | 0;
+      g.fillStyle = `rgb(${gl * 0.6 | 0},${gl},${gl * 0.4 | 0})`;
+      g.save(); g.translate(x, y); g.rotate(rnd() * 6.28); g.beginPath(); g.ellipse(0, 0, 3 + rnd() * 5, 1.5 + rnd() * 2.5, 0, 0, 6.28); g.fill(); g.restore();
+    }
+  });
+  leafTex.repeat.set(3, 2);
+  const needleM = std({ map: needleTex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.88, envMapIntensity: 0.25 });
+  const leafM = std({ map: leafTex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.82, envMapIntensity: 0.25 });
+  const rockM = std({ color: 0x6b6a66, roughness: 0.93, bumpMap: noiseTex(256, 128, 120, 33), bumpScale: 2, flatShading: true, envMapIntensity: 0.25 });
+  // organic geometry: jitter vertices so no two tiers/blobs look machine-made
+  const jitter = (geo, amt) => { const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const k = 1 + (rnd() - 0.5) * amt; p.setXYZ(i, p.getX(i) * k, p.getY(i), p.getZ(i) * k); } geo.computeVertexNormals(); return geo; };
+  const coneGeo = jitter(new THREE.ConeGeometry(1, 1, 11, 3, true), 0.35); coneGeo.translate(0, 0.5, 0);
+  const trunkGeo = new THREE.CylinderGeometry(0.55, 1, 1, 9, 1); trunkGeo.translate(0, 0.5, 0);
+  const blobGeo = new THREE.IcosahedronGeometry(1, 2);
+  { const p = blobGeo.attributes.position; for (let i = 0; i < p.count; i++) { const k = 0.78 + rnd() * 0.42; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.85, p.getZ(i) * k); } blobGeo.computeVertexNormals(); }
+  const rockGeo = new THREE.DodecahedronGeometry(1, 1);
+  { const p = rockGeo.attributes.position; for (let i = 0; i < p.count; i++) { const k = 0.7 + rnd() * 0.5; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.6, p.getZ(i) * k); } rockGeo.computeVertexNormals(); }
+
+  const place = [];
+  for (let i = 0; i < 520; i++) {   // trees: none inside the clearing, denser with distance
+    const r = 12.5 + Math.pow(rnd(), 0.7) * 85, a = rnd() * Math.PI * 2;
+    place.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, conifer: rnd() < 0.68, h: 9 + rnd() * 15, s: 0.75 + rnd() * 0.6 });
+  }
+  const nCone = place.filter((t) => t.conifer).length;
+  const trunks = new THREE.InstancedMesh(trunkGeo, barkM, place.length);
+  const tiers = new THREE.InstancedMesh(coneGeo, needleM, nCone * 6);
+  const blobs = new THREE.InstancedMesh(blobGeo, leafM, (place.length - nCone) * 6);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
+  // tree coordinates are in the three.js world (y up): field (x, y) -> world (x, -y)
+  const put = (im, i, x, y, z, sx, sy, sz, ry, tilt = 0) => { e.set(tilt, ry, tilt * 0.5); q.setFromEuler(e); m4.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(sx, sy, sz)); im.setMatrixAt(i, m4); };
+  let ti = 0, bi = 0;
+  place.forEach((t, i) => {
+    const gy = groundHeight(t.x, t.y), wx = t.x, wz = -t.y;
+    if (t.conifer) {
+      put(trunks, i, wx, gy - 0.2, wz, 0.22 * t.s, t.h * 0.75, 0.22 * t.s, rnd() * 6);
+      for (let k = 0; k < 6; k++) {
+        const f = k / 6, rad = (2.6 - 2.1 * f) * t.s, hh = t.h * 0.28;
+        put(tiers, ti, wx, gy + t.h * (0.22 + 0.68 * f), wz, rad, hh, rad, rnd() * 6, (rnd() - 0.5) * 0.08);
+        col.setHSL(0.3 + (rnd() - 0.5) * 0.05, 0.25 + rnd() * 0.15, 0.32 + rnd() * 0.12); tiers.setColorAt(ti++, col);
+      }
+    } else {
+      put(trunks, i, wx, gy - 0.2, wz, 0.3 * t.s, t.h * 0.62, 0.3 * t.s, rnd() * 6, (rnd() - 0.5) * 0.06);
+      for (let k = 0; k < 6; k++) {
+        const rad = (2.0 + rnd() * 1.8) * t.s, a = rnd() * 6.28, d = rnd() * 2.2 * t.s;
+        put(blobs, bi, wx + Math.cos(a) * d, gy + t.h * (0.62 + rnd() * 0.3), wz + Math.sin(a) * d, rad, rad * 0.85, rad, rnd() * 6);
+        col.setHSL(0.22 + (rnd() - 0.5) * 0.07, 0.3 + rnd() * 0.2, 0.34 + rnd() * 0.14); blobs.setColorAt(bi++, col);
+      }
+    }
+  });
+  const forest = new THREE.Group();   // world-space group (not inside the field frame)
+  // the rig's shadow cameras end ~14 m out and the trees stand beyond the light, so they only receive
+  [trunks, tiers, blobs].forEach((im) => { im.castShadow = false; im.receiveShadow = true; forest.add(im); });
+  // undergrowth, rocks and fallen logs
+  const bushes = new THREE.InstancedMesh(blobGeo, leafM, 420), rocks = new THREE.InstancedMesh(rockGeo, rockM, 90), logs = new THREE.InstancedMesh(trunkGeo, barkM, 26);
+  for (let i = 0; i < 420; i++) {
+    const r = 8.5 + Math.pow(rnd(), 0.8) * 70, a = rnd() * 6.28, x = Math.cos(a) * r, y = Math.sin(a) * r, s2 = 0.35 + rnd() * 0.9;
+    put(bushes, i, x, groundHeight(x, y) + s2 * 0.35, -y, s2 * 1.3, s2 * 0.8, s2 * 1.2, rnd() * 6);
+    col.setHSL(0.24 + (rnd() - 0.5) * 0.08, 0.3 + rnd() * 0.2, 0.3 + rnd() * 0.12); bushes.setColorAt(i, col);
+  }
+  for (let i = 0; i < 90; i++) {
+    const r = 7.5 + rnd() * 60, a = rnd() * 6.28, x = Math.cos(a) * r, y = Math.sin(a) * r, s2 = 0.2 + Math.pow(rnd(), 2) * 1.4;
+    put(rocks, i, x, groundHeight(x, y) + s2 * 0.15, -y, s2, s2, s2 * (0.8 + rnd() * 0.5), rnd() * 6);
+  }
+  for (let i = 0; i < 26; i++) {
+    const r = 10 + rnd() * 50, a = rnd() * 6.28, x = Math.cos(a) * r, y = Math.sin(a) * r, L = 3 + rnd() * 7;
+    e.set(Math.PI / 2, rnd() * 6, 0); q.setFromEuler(e);
+    m4.compose(new THREE.Vector3(x, groundHeight(x, y) + 0.2, -y), q, new THREE.Vector3(0.22, L, 0.22)); logs.setMatrixAt(i, m4);
+  }
+  [bushes, rocks, logs].forEach((im) => { im.castShadow = false; im.receiveShadow = true; forest.add(im); });
+  // grass tufts around the clearing (alpha-tested blade cards)
+  const grassTex = canvasTex(256, (g, n) => {
+    g.clearRect(0, 0, n, n);
+    for (let i = 0; i < 70; i++) {
+      const x = n * (0.1 + rnd() * 0.8), h = n * (0.35 + rnd() * 0.6), lean = (rnd() - 0.5) * n * 0.25;
+      g.strokeStyle = `rgb(${60 + rnd() * 50 | 0},${85 + rnd() * 60 | 0},${35 + rnd() * 25 | 0})`; g.lineWidth = 2 + rnd() * 3;
+      g.beginPath(); g.moveTo(x, n); g.quadraticCurveTo(x + lean * 0.3, n - h * 0.6, x + lean, n - h); g.stroke();
+    }
+  });
+  const grassM = std({ map: grassTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9, envMapIntensity: 0.25 });
+  const card = new THREE.PlaneGeometry(0.6, 0.35); card.translate(0, 0.175, 0);
+  const grass = new THREE.InstancedMesh(card, grassM, 5200);
+  for (let i = 0; i < 5200; i++) {
+    const r = 5.4 + Math.pow(rnd(), 0.6) * 22, a = rnd() * 6.28, x = Math.cos(a) * r, y = Math.sin(a) * r, s2 = 0.7 + rnd() * 0.8;
+    put(grass, i, x, groundHeight(x, y) - 0.02, -y, s2, s2, s2, rnd() * 6);
+  }
+  grass.receiveShadow = true; forest.add(grass);
+  forest.traverse((o) => { if (o.isInstancedMesh) { o.instanceMatrix.needsUpdate = true; if (o.instanceColor) o.instanceColor.needsUpdate = true; o.computeBoundingSphere(); } });
+  scene.add(forest);
+
+  // the lighting rig itself: a box truss on four towers outside the drive team areas
+  const truss = std({ color: 0xbfc4c9, metalness: 1, roughness: 0.38 });
+  const chord = new THREE.CylinderGeometry(0.024, 0.024, 1, 6);
+  const beam = (a, b) => {   // 4-chord box truss between two points (world space)
+    const d = b.clone().sub(a), len = d.length(), mid = a.clone().add(b).multiplyScalar(0.5);
+    const qq = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    for (const [ox, oz] of [[0.15, 0.15], [-0.15, 0.15], [0.15, -0.15], [-0.15, -0.15]]) {
+      const m = new THREE.Mesh(chord, truss); m.scale.set(1, len, 1); m.quaternion.copy(qq);
+      m.position.copy(mid.clone().add(new THREE.Vector3(ox, 0, oz).applyQuaternion(qq))); m.castShadow = false; scene.add(m);
+    }
+  };
+  const R = RIG + 0.6, P = (x, y, z) => new THREE.Vector3(x, y, z);
+  [[-R, -R], [R, -R], [R, R], [-R, R]].forEach(([x, z], i, arr) => {
+    beam(P(x, groundHeight(x, -z), z), P(x, RIG_H + 0.3, z));                         // tower
+    const [x2, z2] = arr[(i + 1) % 4]; beam(P(x, RIG_H + 0.3, z), P(x2, RIG_H + 0.3, z2));   // span
+  });
+  const body = std({ color: 0x1a1b1d, roughness: 0.6, metalness: 0.4 });
+  const lens = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(1, 0.96, 0.88), emissiveIntensity: 6 });
+  fixtures.forEach((f) => {
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.42, 16), body);
+    can.position.copy(f.position); can.lookAt(f.target.position); can.rotateX(Math.PI / 2); scene.add(can);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.15, 16), lens);
+    glass.position.copy(f.position).add(f.target.position.clone().sub(f.position).normalize().multiplyScalar(0.22));
+    glass.lookAt(f.target.position); scene.add(glass);
+  });
+}
+
 // painted zones the CAD doesn't include as solids (tape is in the CAD; GARDENS / ALLIANCE AREAS are floor markings)
 const zone = (b, color, z, op) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(b.xMax - b.xMin, b.yMax - b.yMin), std({ color, roughness: 0.9, transparent: op < 1, opacity: op })); m.position.set((b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, z); m.receiveShadow = true; gp.add(m); };
 zone(F.allianceAreas.red, 0x2a1513, -0.008, 1); zone(F.allianceAreas.blue, 0x121b2a, -0.008, 1);
@@ -321,7 +521,7 @@ function signTexture(label, red) {
 }
 function buildRobot(info) {
   const red = info.alliance === "red", L = info.length, W = info.width, Hh = info.height;
-  const g = new THREE.Group(), add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
+  const g = new THREE.Group(), add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = !mat.userData.noShadow; m.receiveShadow = true; g.add(m); return m; };
   const ch = 0.048, wall = 0.004;   // goBILDA-style 48 mm U-channel side rails and cross members
   for (const sy of [1, -1]) {
     add(new THREE.BoxGeometry(L, wall, ch), M.alu, 0, sy * (W / 2 - 0.035), 0.055);
