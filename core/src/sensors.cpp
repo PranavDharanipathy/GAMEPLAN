@@ -304,13 +304,80 @@ std::vector<AprilTagDetection> SensorSuite::renderVisionFrame(const World& w, in
         out.push_back(det);
     }
     // rare false positive (decoder hallucination) - realistic level and above only
+    renderFalsePositive(out, frameT, cs.latencyS);
+    // Cluster solves: the SDK groups every detected tag that belongs to a library cluster and solves
+    // one pose for the cluster frame from all of their corners. Accuracy grows with the number of
+    // members and their spread (the PnP baseline). Grouping by the team's library happens in the
+    // runtime; the host provides the per-cell solve for the physical member set it saw.
+    std::vector<AprilTagDetection> clusters;
+    for (int cellIdx = 0; cellIdx < 4; ++cellIdx) {
+        std::vector<const AprilTagDetection*> mem;
+        bool fpOnly = true;
+        for (auto& dt : out) {
+            int h, c, k;
+            if (dt.id < 0 || !w.tagCell(dt.id, h, c, k) || h * 2 + c != cellIdx) continue;
+            mem.push_back(&dt);
+            if (!dt.falsePositive) fpOnly = false;
+        }
+        if (mem.empty()) continue;
+        AprilTagDetection cl;
+        cl.id = -100 - cellIdx;
+        cl.frameTime = frameT;
+        cl.availableTime = frameT + cs.latencyS;
+        for (auto* m : mem) cl.clusterIds.push_back(m->id);
+        if (fpOnly) {   // a hallucinated member alone yields a garbage cluster pose, as on the robot
+            const AprilTagDetection& fp = *mem[0];
+            cl.x = fp.x; cl.y = fp.y; cl.z = fp.z; cl.range = fp.range; cl.bearing = fp.bearing; cl.elevation = fp.elevation;
+            cl.yaw = fp.yaw; cl.decisionMargin = fp.decisionMargin; cl.falsePositive = true;
+            clusters.push_back(cl);
+            continue;
+        }
+        World::ClusterFrame f = w.clusterFrame(cellIdx / 2, cellIdx % 2);
+        Vec3 d = f.origin - cam;
+        double xr = d.dot(right), yf = d.dot(fwd), zu = d.dot(up);
+        double range = d.norm();
+        double minX = 1e9, maxX = -1e9, facing = 0, margin = 0;
+        int real = 0;
+        for (auto* m : mem) {
+            if (m->falsePositive) continue;
+            int h, c, k;
+            w.tagCell(m->id, h, c, k);
+            double mx = size_t(k) < w.season().clusterMembers.size() ? w.season().clusterMembers[size_t(k)].x : 0;
+            minX = std::min(minX, mx); maxX = std::max(maxX, mx);
+            margin += m->decisionMargin;
+            ++real;
+        }
+        Vec3 nOut = f.za * -1.0;
+        facing = std::max(0.05, -(d.normalized()).dot(nOut));
+        double effSize = tagSize + (maxX - minX) * facing;      // corner spread used by the PnP solve
+        double outlier = real < int(mem.size()) ? 3.0 : 1.0;    // a false member corrupts the solve
+        double sigPx = noisy ? (0.35 + angRate * 0.012 * fx * 0.2) * outlier : 0.0;
+        double sigRange = noisy ? range * range * sigPx / (fx * effSize) * 1.5 / std::sqrt(double(real)) : 0.0;
+        double meas = range + sigRange * rngVision_.normal();
+        double bearing = std::atan2(-xr, yf) + (noisy ? sigPx / fx / std::sqrt(double(real)) * rngVision_.normal() : 0);
+        double elevation = std::atan2(zu, std::sqrt(xr * xr + yf * yf)) + (noisy ? sigPx / fy / std::sqrt(double(real)) * rngVision_.normal() : 0);
+        cl.range = meas; cl.bearing = bearing; cl.elevation = elevation;
+        cl.y = meas * std::cos(elevation) * std::cos(bearing);
+        cl.x = -meas * std::cos(elevation) * std::sin(bearing);
+        cl.z = meas * std::sin(elevation);
+        double yawTrue = std::atan2(nOut.dot(right), -nOut.dot(fwd));
+        cl.yaw = yawTrue + (noisy ? (0.02 + 0.08 * (1 - facing)) * tagSize / effSize * outlier * rngVision_.normal() : 0);
+        cl.decisionMargin = margin / std::max(1, real);
+        cl.truthRange = range;
+        clusters.push_back(cl);
+    }
+    for (auto& cl : clusters) out.push_back(cl);
+    return out;
+}
+
+void SensorSuite::renderFalsePositive(std::vector<AprilTagDetection>& out, double frameT, double latencyS) {
     if (visionLevel_ == ULevel::Realistic || visionLevel_ == ULevel::Extreme) {
         double pf = visionLevel_ == ULevel::Extreme ? 0.004 : 0.0008;
         if (rngVision_.bernoulli(pf)) {
             AprilTagDetection det;
             det.id = 30 + int(rngVision_.uniform(0, 16));
             det.frameTime = frameT;
-            det.availableTime = frameT + cs.latencyS;
+            det.availableTime = frameT + latencyS;
             det.range = rngVision_.uniform(0.5, 3.0);
             det.bearing = rngVision_.uniform(-0.5, 0.5);
             det.y = det.range * std::cos(det.bearing);
@@ -320,7 +387,6 @@ std::vector<AprilTagDetection> SensorSuite::renderVisionFrame(const World& w, in
             out.push_back(det);
         }
     }
-    return out;
 }
 
 std::vector<AprilTagDetection> SensorSuite::pollVision(const World& w, int ri, int si, double t) {

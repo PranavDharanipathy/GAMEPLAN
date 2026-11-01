@@ -183,40 +183,57 @@ std::vector<int> World::allTagIds() const {
     return ids;
 }
 
-Vec3 World::tagPosition(int tagId, Vec3* normal) const {
-    for (int h = 0; h < 2; ++h) {
-        const HiveDef& hd = season_.hives[h];
-        const HiveState& hs = hives_[h];
+bool World::tagCell(int tagId, int& hive, int& cell, int& k) const {
+    for (int h = 0; h < 2; ++h)
         for (int c = 0; c < 2; ++c) {
-            const CellDef& cd = hd.cells[c];
-            for (size_t k = 0; k < cd.tags.size(); ++k) {
-                if (cd.tags[k] != tagId) continue;
-                // downness of this cell: 0 when up, 1 when down, interpolated while tipping
-                double down = (hs.upCell == c) ? 0.0 : 1.0;
-                if (hs.tipping) {
-                    double f = clampd((t_ - hs.tipStart) / season_.tipSettleS, 0, 1);
-                    down = (hs.upCell == c) ? f : 1.0 - f;
-                }
-                double sigma = cd.side == "audience" ? 1.0 : -1.0;
-                double phi = sigma * down * hs.stateAngle;
-                // tag layout in the cluster (2x2), in the sticker plane
-                Vec3 n0 = cd.upClusterNormal.normalized();
-                Vec3 across{1, 0, 0};
-                Vec3 along = n0.cross(across).normalized();
-                double ox = (k % 2 == 0 ? -1 : 1) * 0.0889, oy = (k < 2 ? -1 : 1) * 0.0508;
-                Vec3 pUp = cd.upClusterCenter + across * ox + along * oy;
-                auto rot = [&](Vec3 v) {
-                    double y = v.y, z = v.z;
-                    return Vec3{v.x, y * std::cos(phi) - z * std::sin(phi), y * std::sin(phi) + z * std::cos(phi)};
-                };
-                Vec3 rel = pUp - hd.pivot;
-                Vec3 p = hd.pivot + rot(rel);
-                if (normal) *normal = rot(n0);
-                return p;
-            }
+            const auto& tags = season_.hives[h].cells[c].tags;
+            for (size_t i = 0; i < tags.size(); ++i)
+                if (tags[i] == tagId) { hive = h; cell = c; k = int(i); return true; }
         }
+    return false;
+}
+
+World::ClusterFrame World::clusterFrame(int h, int c) const {
+    const HiveDef& hd = season_.hives[h];
+    const HiveState& hs = hives_[h];
+    const CellDef& cd = hd.cells[c];
+    // downness of this cell: 0 when up, 1 when down, interpolated while tipping
+    double down = (hs.upCell == c) ? 0.0 : 1.0;
+    if (hs.tipping) {
+        double f = clampd((t_ - hs.tipStart) / season_.tipSettleS, 0, 1);
+        down = (hs.upCell == c) ? f : 1.0 - f;
     }
-    GP_THROW(std::runtime_error("unknown AprilTag id " + std::to_string(tagId)));
+    double sigma = cd.side == "audience" ? 1.0 : -1.0;
+    double phi = sigma * down * hs.stateAngle;
+    // up-state axes: n0 = outward tag normal (towards a viewer), "up" in the sticker plane from world up
+    Vec3 n0 = cd.upClusterNormal.normalized();
+    Vec3 wz{0, 0, 1};
+    Vec3 yUp = (wz - n0 * wz.dot(n0)).normalized();
+    ClusterFrame f;
+    f.yd = yUp * -1.0;
+    f.za = n0 * -1.0;
+    f.xr = f.yd.cross(f.za);
+    // upClusterCenter (CAD) is the centre of the tag row; the frame origin sits at minus the member mean
+    Vec3 mean{0, 0, 0};
+    for (auto& m : season_.clusterMembers) mean = mean + m;
+    if (!season_.clusterMembers.empty()) mean = mean * (1.0 / double(season_.clusterMembers.size()));
+    f.origin = cd.upClusterCenter - (f.xr * mean.x + f.yd * mean.y + f.za * mean.z);
+    auto rot = [&](Vec3 v) {
+        double y = v.y, z = v.z;
+        return Vec3{v.x, y * std::cos(phi) - z * std::sin(phi), y * std::sin(phi) + z * std::cos(phi)};
+    };
+    f.origin = hd.pivot + rot(f.origin - hd.pivot);
+    f.xr = rot(f.xr); f.yd = rot(f.yd); f.za = rot(f.za);
+    return f;
+}
+
+Vec3 World::tagPosition(int tagId, Vec3* normal) const {
+    int h, c, k;
+    if (!tagCell(tagId, h, c, k)) GP_THROW(std::runtime_error("unknown AprilTag id " + std::to_string(tagId)));
+    ClusterFrame f = clusterFrame(h, c);
+    Vec3 m = size_t(k) < season_.clusterMembers.size() ? season_.clusterMembers[size_t(k)] : Vec3{0, 0, 0};
+    if (normal) *normal = f.za * -1.0;
+    return f.origin + f.xr * m.x + f.yd * m.y + f.za * m.z;
 }
 
 bool World::robotTouchesWall(int r, double margin) const {

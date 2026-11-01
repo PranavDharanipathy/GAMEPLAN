@@ -18,7 +18,7 @@ Statuses: Not started · Investigating · Designed · Implementing · Implemente
 | Field contacts, elements, HIVE, FLOWER | Validated | `world.cpp` | matches, tag tests | element–robot contact is kinematic push |
 | Uncertainty engine (4 levels) | Tested | `uncertainty.cpp` | `uncertainty_levels_semantics` | correlations only where coded |
 | Sensors + corruption (no failures) | Implemented | `sensors.cpp` | used in runtime matches | no dedicated unit tests per sensor |
-| Virtual AprilTag perception | Validated | `sensors.cpp`, `SimAprilTagProcessor` | fixture OpMode receives detections | no clusters, no robotPose |
+| Virtual AprilTag perception | Validated | `sensors.cpp`, `world.cpp` (`clusterFrame`), `SimAprilTagProcessor` | default library -> `AprilTagClusterDetection`s (up to 100 %); custom library -> singles with pose; cluster geometry unit test vs SDK metadata | no robotPose/rawPose; ftcPose pitch/roll 0 |
 | ESD / faults / brownout | Tested | `world.cpp` | `esd_never_triggers_without_charge…` | magnitudes estimated |
 | FTC runtime (hybrid real SDK) | Validated | `runtime/` | integration tests; team OpMode match | see FTC_SDK.md gaps |
 | Loop-time cost model | Validated | `VirtualRuntime`, `timing_profiles.json` | 25.7 vs 6.9 ms loops | µs values not yet calibrated |
@@ -63,7 +63,7 @@ AI (XV), experiments with estimates (XVII), sandbox (XX, partial).
 Missing or partial (recorded above, not hidden): Unreal build/validation, driver UI screens, replay
 viewer, CAD tessellation and digital-twin reconstruction from geometry, electrical config editor UI,
 video ingestion/calibration, FTCScout, learning bots, multiplayer, workspaces/versioning UI, robot
-library/consent, installer, OS sandboxes on macOS/Windows, AprilTag clusters.
+library/consent, installer, OS sandboxes on macOS/Windows, AprilTag robotPose.
 
 ## Audit 2 — contradictions and architecture
 - Competition AUTO vs practice free-drive: separate `competitionMode`; gamepads zeroed in AUTO in

@@ -84,6 +84,7 @@ SeasonDef SeasonDef::fromText(const std::string& text, const std::string& path) 
     s.flowerOuterR = fg["outerRadius_m"].num(0.075);
     s.flowerRetrievalH = fg["retrievalOpeningHeight_m"].num(0.09);
     s.tagSize = f["aprilTags"]["size_m"].num(0.08255);
+    for (auto& m : f["aprilTags"]["clusterMemberPositions_in"].items()) s.clusterMembers.push_back(v3(m) * 0.0254);
     const Json& tip = f["hiveTip"];
     s.pollenTipW = tip["pollenTipWeight"].num(); s.nectarTipW = tip["nectarTipWeight"].num();
     s.tipThreshold = tip["threshold"].num(); s.tipThresholdSigma = tip["thresholdSigma"].num(0.25);

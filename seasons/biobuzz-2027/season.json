@@ -422,7 +422,7 @@
       "kind": "derived",
       "confidence": "medium",
       "evidence": "CAD tag sticker placements: up-cell tags at z=1.2934, down-cell tags at z=0.8738; rotating the up pose by 60 deg about the pivot axis reproduces the CAD down pose to <1 mm, so each HIVE flips between two states 60 deg apart. Cluster centres placed on the HIVE centreline (Manual 9.9: tag pairs aligned at the centreline).",
-      "aprilTagLayout": "2x2 per cluster, 3.25 in tags, centres at +/-0.0889 m across and +/-0.0508 m along the sticker (estimate; printable sticker PDF dimensions 6.5 in / 7.0 in / 2.75 in not fully resolved)"
+      "aprilTagLayout": "4 tags in one row per cluster (SDK 12.0.0 cluster metadata: x = -6.5, -2.75, 2.75, 6.5 in; replaces the earlier 2x2 estimate). Row centre from CAD sticker placement; cluster origin follows from the SDK member offsets (7.19 in beyond the row in the tag plane, 5.62 in behind it), which lands at the cell interior, consistent with CAD to ~0.5 in (derived, medium confidence)."
     },
     "cellCapture": {
       "upOpeningCenterHeight_m": 1.43,
@@ -438,7 +438,35 @@
     "aprilTags": {
       "family": "36h11",
       "size_m": 0.08255,
-      "source": "Manual 9.9"
+      "source": "Manual 9.9",
+      "clusterMemberPositions_in": [
+        [
+          -6.5,
+          7.1874,
+          -5.622
+        ],
+        [
+          -2.75,
+          7.1874,
+          -5.622
+        ],
+        [
+          2.75,
+          7.1874,
+          -5.622
+        ],
+        [
+          6.5,
+          7.1874,
+          -5.622
+        ]
+      ],
+      "clusterFrame": "OpenCV object frame of the SDK cluster: x right and y down as seen facing the tags, z away from the viewer (into the cell). Member i of a cell's aprilTags list sits at clusterMemberPositions_in[i].",
+      "clusterSource": {
+        "kind": "official",
+        "confidence": "high",
+        "source": "FTC SDK 12.0.0 Vision AprilTagGameDatabase.getBioBuzzTagLibrary(): 4 clusters (RED SCORING 30-33, RED AUDIENCE 34-37, BLUE AUDIENCE 38-41, BLUE SCORING 42-45), no single tags; fieldPosition (0,0,0) because the clusters move with the HIVE"
+      }
     }
   },
   "scoringElements": {

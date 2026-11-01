@@ -45,4 +45,19 @@ changes only numerical resolution and is recorded in the match header.
 ## Field provenance
 Geometry from the official STEP CAD (sha256 recorded) and TU07 manual. Not officially specified and
 therefore **estimates with uncertainty**: tile μ (0.95, lognormal 7 %), wall stiffness, element
-masses, restitution, CELL opening height, AprilTag layout within a cluster.
+masses, restitution, CELL opening height. The AprilTag layout within a cluster is **official**: the
+SDK 12.0.0 BIOBUZZ library (`AprilTagGameDatabase.getBioBuzzTagLibrary()`) gives four tags in a row
+at x = −6.5, −2.75, 2.75, 6.5 in, y = 7.19 in, z = −5.62 in in the cluster frame (OpenCV object frame:
+x right, y down facing the tags, z into the cell). The row centre comes from the CAD sticker placement;
+the frame origin follows from those offsets and lands inside the CELL (≈0.5 in from the CAD-derived
+cell centre), which is the remaining *derived* part.
+
+## Virtual AprilTag clusters
+Each camera frame, the host groups the tags it detected by HIVE cell and solves one pose for that
+cell's cluster frame: range/bearing noise shrinks with √(members seen) and with the corner spread
+(baseline) of the visible members; yaw noise shrinks with the spread; a hallucinated member corrupts
+the solve (×3 noise) and a hallucination alone gives a garbage cluster pose. The runtime then applies
+the team's library exactly like `AprilTagProcessorImpl`: tags in a library cluster are consumed by
+that cluster (`percentClusterFound = round(seen/members·100)`), all others become single detections,
+with metadata and `ftcPose` only when the library knows the tag. `pitch`/`roll` are 0 and `rawPose`
+/`robotPose` are `null`.

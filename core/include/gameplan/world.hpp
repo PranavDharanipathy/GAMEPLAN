@@ -138,6 +138,12 @@ public:
     std::vector<FaultEvent>& faults() { return faults_; }
     const UncertaintySampler& sampler() const { return sampler_; }
     Vec3 tagPosition(int tagId, Vec3* normal = nullptr) const;   // live pose (moves with HIVE tips)
+    // Live frame of a HIVE cell's AprilTag cluster (SDK 12 cluster object frame): origin and axes
+    // x right / y down as seen facing the tags, z into the cell.
+    struct ClusterFrame { Vec3 origin, xr, yd, za; };
+    ClusterFrame clusterFrame(int hive, int cell) const;
+    // Which cell a tag belongs to (false if unknown); k = index in the cell's tag list.
+    bool tagCell(int tagId, int& hive, int& cell, int& k) const;
     std::vector<int> allTagIds() const;
     bool robotTouchesWall(int r, double margin = 0.01) const;
     bool robotInLoadingZone(int r) const;

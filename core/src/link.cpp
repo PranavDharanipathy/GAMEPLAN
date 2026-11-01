@@ -534,8 +534,19 @@ bool RuntimeLink::exchange(double t, std::string& err) {
         cam.set("device", int(sensorBase_ + s));
         double ft = dets.empty() ? -1 : dets[0].frameTime;
         cam.set("frameTime", ft);
-        Json da = Json::array();
+        Json da = Json::array(), ca = Json::array();
         for (auto& d : dets) {
+            if (d.id <= -100) {   // per-cell cluster solve (SDK 12 AprilTagClusterDetection)
+                Json cj = Json::object();
+                const CellDef& cd = w_.season().hives[(-100 - d.id) / 2].cells[(-100 - d.id) % 2];
+                cj.set("cell", cd.id);
+                Json members = Json::array(); for (int m : cd.tags) members.push(m); cj.set("members", members);
+                Json seen = Json::array(); for (int m : d.clusterIds) seen.push(m); cj.set("seen", seen);
+                cj.set("x", d.x); cj.set("y", d.y); cj.set("z", d.z); cj.set("yaw", d.yaw); cj.set("pitch", d.pitch);
+                cj.set("roll", d.roll); cj.set("range", d.range); cj.set("bearing", d.bearing); cj.set("elevation", d.elevation);
+                ca.push(cj);
+                continue;
+            }
             Json dj = Json::object();
             dj.set("id", d.id); dj.set("x", d.x); dj.set("y", d.y); dj.set("z", d.z); dj.set("yaw", d.yaw); dj.set("pitch", d.pitch);
             dj.set("roll", d.roll); dj.set("range", d.range); dj.set("bearing", d.bearing); dj.set("elevation", d.elevation);
@@ -544,6 +555,7 @@ bool RuntimeLink::exchange(double t, std::string& err) {
             da.push(dj);
         }
         cam.set("detections", da);
+        cam.set("clusters", ca);
         key += std::to_string(s) + ":" + std::to_string(ft) + ";";
         vis.push(cam);
     }

@@ -11,7 +11,8 @@
 - Robot: start in 18 in cube, expansion 18×24×29 in, ≤ 8 motors + ≤ 8 servos, 1 Control Hub (or phone +
   Expansion Hub) + ≤ 1 additional Expansion Hub, servo ≤ 8 W mech / ≤ 4 A stall @6 V.
 - AprilTags 36h11, 3.25 in, clusters of 4 on CELL bottoms: red rear 30–33, red audience 34–37, blue
-  audience 38–41, blue rear 42–45. Tags move when HIVES tip.
+  audience 38–41, blue rear 42–45. Tags move when HIVES tip. SDK 12 library: one row of 4 per cluster
+  (x = ±2.75, ±6.5 in), no single tags; default `AprilTagProcessor.Builder` library = current game.
 - Field frame (GamePlan): origin centre, +x to blue wall, +y away from audience, +z up; CAD mapping
   `(x, −z, y)`.
 

@@ -86,5 +86,19 @@ if sys.platform.startswith("linux") and rt3.get("fsConfinement", "").startswith(
 else:
     print("  [ SKIP ] OS filesystem confinement checks (not available here: %s)" % rt3.get("fsConfinement"))
 
+# SDK 12 AprilTag clusters: default library -> HIVE tags arrive as cluster detections; a custom
+# library listing them individually -> the same tags arrive as single detections with poses
+def tel_of(rec):
+    rt = json.load(open(os.path.join(OUT, rec, "result.json")))["runtimes"][0]
+    return {k.strip(): v.strip() for k, v in (l.split(":", 1) for l in rt["lastTelemetry"] if ":" in l)}
+r4 = match("AprilTag Watch", None, "m4")
+t4 = tel_of("m4") if r4.returncode == 0 else {}
+check("AprilTag clusters (default library): cluster detections, no singles",
+      r4.returncode == 0 and int(t4.get("clusters", 0)) > 50 and int(t4.get("singlesWithPose", 1)) == 0 and int(t4.get("maxPercent", 0)) >= 50, str(t4))
+r5 = match("AprilTag Watch (singles)", None, "m5")
+t5 = tel_of("m5") if r5.returncode == 0 else {}
+check("AprilTag custom library: same tags as singles with pose, no clusters",
+      r5.returncode == 0 and int(t5.get("singlesWithPose", 0)) > 50 and int(t5.get("clusters", 1)) == 0, str(t5))
+
 print("\n%d failure(s)" % len(fails))
 sys.exit(1 if fails else 0)

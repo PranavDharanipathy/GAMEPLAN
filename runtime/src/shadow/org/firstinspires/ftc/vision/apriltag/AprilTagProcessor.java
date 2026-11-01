@@ -25,7 +25,7 @@ public abstract class AprilTagProcessor implements VisionProcessor {
     public static class Builder {
         DistanceUnit du = DistanceUnit.INCH;
         AngleUnit au = AngleUnit.DEGREES;
-        AprilTagLibrary lib;
+        AprilTagLibrary lib = AprilTagGameDatabase.getCurrentGameTagLibrary();   // SDK default
         public Builder setCameraPose(Position p, YawPitchRollAngles o) { return this; }
         public Builder setLensIntrinsics(double fx, double fy, double cx, double cy) { return this; }
         public Builder setSuppressCalibrationWarnings(boolean b) { return this; }

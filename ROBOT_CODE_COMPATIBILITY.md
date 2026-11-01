@@ -28,7 +28,7 @@ and its libraries through a compatibility runtime.
 |---|---|
 | Fixture iterative TeleOp (mecanum, bulk AUTO, DcMotorEx velocity, servos, voltage) | runs; behaviour checked |
 | Fixture LinearOpMode AUTO (RUN_TO_POSITION, IMU turn, `sleep`) | runs; drove 0.77 m of 0.8 m target |
-| Fixture VisionPortal + AprilTagProcessor | runs; virtual detections delivered |
+| Fixture VisionPortal + AprilTagProcessor | runs; SDK 12 cluster detections with the default library, single detections with a custom library |
 | Fixture expensive loop (no caching, getCurrent/getPower/voltage) | runs; loop 25.7 ms vs 6.9 ms |
 | Fixture Android-only OpMode | excluded with reason (correct) |
 | AthletechBiobuzzV1 (real team, SDK 12, Pedro 3, Sloth dashboard, Kotlin 2.4.10, 84 files) | 81 compile & load (incl. the 5 Pedro tuners); `DriveIntakeShoot` played a full match |

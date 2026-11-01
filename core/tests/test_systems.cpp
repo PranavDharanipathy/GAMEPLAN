@@ -210,3 +210,36 @@ TEST(uncertainty_levels_semantics) {
     cfg.setLevel("battery", ULevel::Extreme);
     for (int s = 0; s < 50; ++s) CHECK_GT(UncertaintySampler(s, cfg).sample(p), 1.12);  // adverse tail band
 }
+
+// SDK 12.0.0 BIOBUZZ library: 4 tags in a row per cluster (x = -6.5, -2.75, 2.75, 6.5 in), all in one
+// plane; the cluster frame must stay rigid while the HIVE tips, and members read left->right facing them.
+TEST(apriltag_cluster_geometry_matches_sdk_metadata) {
+    MatchSetup s = aiSetup(9);
+    MatchRunner m(s);
+    std::string err;
+    CHECK(m.begin(err));
+    const World& w = m.world();
+    CHECK(w.season().clusterMembers.size() == 4);
+    for (int cellIdx = 0; cellIdx < 4; ++cellIdx) {
+        int h = cellIdx / 2, c = cellIdx % 2;
+        World::ClusterFrame f = w.clusterFrame(h, c);
+        const auto& tags = w.season().hives[h].cells[c].tags;
+        Vec3 n;
+        Vec3 p0 = w.tagPosition(tags[0], &n), p3 = w.tagPosition(tags[3]);
+        CHECK_NEAR((p3 - p0).norm(), 13.0 * 0.0254, 1e-6);                 // row spans 13 in centre-to-centre
+        CHECK_NEAR((p3 - p0).normalized().dot(f.xr), 1.0, 1e-9);           // left -> right along cluster x
+        for (int k = 0; k < 4; ++k) {
+            Vec3 q = w.tagPosition(tags[k]) - f.origin;                      // member in the cluster frame
+            Vec3 mk = w.season().clusterMembers[k];
+            CHECK_NEAR(q.dot(f.xr), mk.x, 1e-9);
+            CHECK_NEAR(q.dot(f.yd), mk.y, 1e-9);
+            CHECK_NEAR(q.dot(f.za), mk.z, 1e-9);
+        }
+        CHECK_NEAR(n.dot(f.za), -1.0, 1e-9);                                 // tags face out of the cell
+        // a viewer in front of the tags sees x to their right: (x right) x (y down) = z away from viewer
+        CHECK_NEAR(f.xr.cross(f.yd).dot(f.za), 1.0, 1e-9);
+        // the frame origin lies inside the HIVE body, above the floor and within the field
+        CHECK_GT(f.origin.z, 0.6);
+        CHECK_LT(std::fabs(f.origin.y), 0.6);
+    }
+}

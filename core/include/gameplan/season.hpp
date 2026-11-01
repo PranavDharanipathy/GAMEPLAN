@@ -52,6 +52,9 @@ struct SeasonDef {
     double flowerTopH = 0.546, flowerOpeningD = 0.1015, flowerZMin = 0.09, flowerZMax = 0.546, flowerOuterR = 0.075;
     double flowerRetrievalH = 0.09;
     double tagSize = 0.08255;
+    // SDK 12 cluster member positions (metres) in the cluster's OpenCV object frame
+    // (x right, y down facing the tags, z into the cell); index = position in CellDef::tags.
+    std::vector<Vec3> clusterMembers;
     // tip model
     double pollenTipW = 1.0, nectarTipW = 1.6667, tipThreshold = 7.5, tipThresholdSigma = 0.25, impactBonusPerMps = 0.12, tipSettleS = 1.2;
     // elements

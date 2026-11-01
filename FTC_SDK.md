@@ -51,7 +51,7 @@ annotations `@TeleOp/@Autonomous/@Disabled`.
 ## Known gaps (explicit)
 - Controller-level APIs (`DcMotorController`, `ServoController` methods) return defaults with a warning.
 - `MotorConfigurationType` needs gson (provided) — returned when constructible, else `null`.
-- AprilTag cluster detections (`AprilTagClusterDetection`, SDK 12) are not synthesized yet; singles are.
+- AprilTag cluster detections (`AprilTagClusterDetection`, SDK 12) are synthesized with the SDK's grouping rules (see SIMULATION_PHYSICS.md); `pitch`/`roll` in `ftcPose` are 0.
 - `robotPose` in AprilTag detections is `null` (camera-pose localization not computed yet).
 - OnBot Java, Blocks, the RC web UI, `@WebHandlerRegistrar`, `@OnCreateEventLoop` hooks, Limelight3A,
   phone cameras: not executed (reported).

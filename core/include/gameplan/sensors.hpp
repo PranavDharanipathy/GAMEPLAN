@@ -34,6 +34,9 @@ struct AprilTagDetection {
     double decisionMargin = 0;
     bool falsePositive = false;
     double truthRange = 0;      // ground truth for engineering comparison (never sent to the runtime)
+    // Cluster result (id <= -100: cell index = -100 - id, hive*2 + cell): pose of the cluster frame
+    // origin solved from all detected members of that cell in this frame (SDK 12 cluster solve).
+    std::vector<int> clusterIds;
 };
 
 struct CorruptionModel {
@@ -62,6 +65,7 @@ public:
 private:
     double corrupt(double v, double prev, double scale, Rng& r);
     std::vector<AprilTagDetection> renderVisionFrame(const World& w, int robotIndex, int sensorIdx, double frameT);
+    void renderFalsePositive(std::vector<AprilTagDetection>& out, double frameT, double latencyS);
     Robot& robot_;
     Rng rng_, rngVision_;
     // IMU
