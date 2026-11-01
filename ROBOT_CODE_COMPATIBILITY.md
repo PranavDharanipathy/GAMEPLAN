@@ -31,8 +31,9 @@ and its libraries through a compatibility runtime.
 | Fixture VisionPortal + AprilTagProcessor | runs; virtual detections delivered |
 | Fixture expensive loop (no caching, getCurrent/getPower/voltage) | runs; loop 25.7 ms vs 6.9 ms |
 | Fixture Android-only OpMode | excluded with reason (correct) |
-| AthletechBiobuzzV1 (real team, SDK 12, Pedro 3, Sloth dashboard, Kotlin 2.4.10, 84 files) | 76 compile & load; `DriveIntakeShoot` played a full match |
-| — excluded: Pedro `tuning.autotune` package (not in resolved artifacts), `MonitorWebServer` (Android assets/web), `RobotLogger`, `HardwareMonitorViewer` (depend on it) | reported |
+| AthletechBiobuzzV1 (real team, SDK 12, Pedro 3, Sloth dashboard, Kotlin 2.4.10, 84 files) | 81 compile & load (incl. the 5 Pedro tuners); `DriveIntakeShoot` played a full match |
+| — excluded: `MonitorWebServer` (Android `android.content.res` assets/web), `RobotLogger`, `HardwareMonitorViewer` (depend on it) | reported |
+| — fixed: the importer's Gradle dependency regex skipped every second consecutive `implementation` line, so `com.pedropathing:tuning` was never resolved. Maven Central now also falls back to Google's Central mirror on rate limits. | |
 | Road Runner, FTCLib projects | **not yet tested** |
 | Robot-code threads | run on the shared virtual clock; marked non-deterministic |
 | Raw-frame vision pipelines (OpenCV/EasyOpenCV), Limelight | not executed (boundary reported) |

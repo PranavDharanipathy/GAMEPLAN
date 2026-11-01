@@ -105,7 +105,7 @@ public final class Importer {
         String gradle = String.join("\n", gradleTexts);
         Map<String, MavenResolver.Coord> coords = new LinkedHashMap<>();
         Map<String, Set<String>> exclusions = new HashMap<>();
-        Matcher dm = Pattern.compile("(?m)^\\s*(implementation|api|compileOnly|runtimeOnly)\\s*\\(?\\s*['\"]([^'\":\\s]+):([^'\":\\s]+):([^'\"\\s]+)['\"]\\s*\\)?\\s*(\\{[^}]*\\})?").matcher(gradle);
+        Matcher dm = Pattern.compile("(?m)^\\s*(implementation|api|compileOnly|runtimeOnly)\\s*\\(?\\s*['\"]([^'\":\\s]+):([^'\":\\s]+):([^'\"\\s]+)['\"][ \\t]*\\)?[ \\t]*(\\{[^}]*\\})?").matcher(gradle);
         while (dm.find()) {
             MavenResolver.Coord c = new MavenResolver.Coord(dm.group(2), dm.group(3), dm.group(4));
             if (dm.group(1).equals("compileOnly")) continue;
@@ -115,7 +115,7 @@ public final class Importer {
                 while (em.find()) exclusions.computeIfAbsent(c.key(), k -> new HashSet<>()).add(em.group(1) + ":*");
             }
         }
-        List<String> repos = new ArrayList<>(Arrays.asList("https://repo1.maven.org/maven2/", "https://dl.google.com/dl/android/maven2/"));
+        List<String> repos = new ArrayList<>(Arrays.asList("https://repo1.maven.org/maven2/", "https://maven-central.storage-download.googleapis.com/maven2/", "https://dl.google.com/dl/android/maven2/"));
         Matcher rm = Pattern.compile("maven\\s*\\{\\s*url\\s*=?\\s*(?:uri\\()?['\"]([^'\"]+)['\"]").matcher(gradle);
         while (rm.find()) if (!repos.contains(rm.group(1))) repos.add(rm.group(1));
         String sdkVersion = "12.0.0";
@@ -185,7 +185,7 @@ public final class Importer {
             if (kc == null && kotlin.get("pluginVersion") != null) {
                 // provision the Kotlin compiler matching the project's Kotlin Gradle plugin
                 String kv = (String) kotlin.get("pluginVersion");
-                MavenResolver kr = new MavenResolver(Arrays.asList("https://repo1.maven.org/maven2/"), Paths.get(System.getProperty("user.home"), ".gameplan", "maven"), offline);
+                MavenResolver kr = new MavenResolver(Arrays.asList("https://repo1.maven.org/maven2/", "https://maven-central.storage-download.googleapis.com/maven2/"), Paths.get(System.getProperty("user.home"), ".gameplan", "maven"), offline);
                 MavenResolver.Resolved kres = kr.resolve(Arrays.asList(new MavenResolver.Coord("org.jetbrains.kotlin", "kotlin-compiler-embeddable", kv)), new HashMap<>());
                 if (kres.failed.isEmpty() && kres.jars.containsKey("org.jetbrains.kotlin:kotlin-compiler-embeddable")) {
                     kc = kres.jars.values().stream().map(Path::toString).collect(Collectors.joining(File.pathSeparator));
