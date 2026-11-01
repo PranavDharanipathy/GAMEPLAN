@@ -18,6 +18,6 @@ if rel["version"] != version:
 for cmd in (["python3", "tools/build_web.py"], ["python3", "tools/build_web_page.py"]):
     r = subprocess.run(cmd, cwd=root)
     if r.returncode: sys.exit("build failed: " + " ".join(cmd))
-url = os.environ.get("GAMEPLAN_WEB_URL", "https://claude.ai/artifact/7xfXr5HGTdA4tZgXXosdTA")
+url = os.environ.get("GAMEPLAN_WEB_URL", "https://claude.ai/artifact/TbfqC59V2GZrDpbBcNBAkU")
 record = {"version": version, "date": rel["date"], "required": bool(rel.get("required")), "notes": rel["notes"], "webUrl": url}
 print(json.dumps(record, indent=1))
