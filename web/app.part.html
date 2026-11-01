@@ -580,7 +580,10 @@ function buildRobot(info) {
     const arc = new THREE.Mesh(new THREE.CylinderGeometry(f.radius + 0.075, f.radius + 0.075, 0.13, 24, 1, true, Math.PI * 0.05, Math.PI * 0.6), M.poly);
     arc.material = M.poly; hood.add(arc);
   }
-  return { g, wheels, roller, fly, hood };
+  // driver feedback LED strip (teams wire one to show shooter state): off / amber / green
+  const led = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.025, 0.012), new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x000000, emissiveIntensity: 4 }));
+  led.position.set(-L / 2 + 0.03, 0, Hh - 0.02); g.add(led);
+  return { g, wheels, roller, fly, hood, led, status: 0 };
 }
 function ensureRobots(n) {
   while (robots.length < n) {
@@ -590,7 +593,7 @@ function ensureRobots(n) {
 }
 
 // ================= per-frame pose update from the simulation =================
-const RS = 17, ES = 14, CS = 5;
+const RS = 18, ES = 14, CS = 5;
 function draw(fr) {
   const nR = fr[4], nE = fr[5], nC = fr[6];
   let o = 7;
@@ -603,6 +606,12 @@ function draw(fr) {
     if (r.fly) r.fly.rotation.y = fr[o + 10];
     if (r.hood) r.hood.rotation.y = -(fr[o + 11] - 0.9) * 0.5;
     r.wheels.forEach((w) => { const k = (w.x > 0 ? 0 : 2) + (w.y > 0 ? 0 : 1); w.spin.rotation.y = fr[o + 12 + k]; });
+    const st = fr[o + 17];
+    if (st !== r.status) {
+      r.led.material.emissive.setHex(st === 2 ? 0x22ff55 : st === 1 ? 0xffa000 : 0x000000);
+      if (st === 2 && i === 0) rumble(0.12, 0.6);   // the driver feels "ready" through the controller
+      r.status = st;
+    }
   }
   const cnt = { 0: 0, 1: 0, 2: 0 }, cntFar = { 0: 0, 1: 0, 2: 0 };
   _cam.set(camera.position.x, -camera.position.z, camera.position.y);   // camera in the field frame
@@ -650,6 +659,35 @@ const keys = new Set();
 addEventListener("keydown", (e) => { if (state.running && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { keys.add(e.code); if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault(); } });
 addEventListener("keyup", (e) => keys.delete(e.code));
 const DZ = 0.06, dz = (v) => (Math.abs(v) < DZ ? 0 : (v - Math.sign(v) * DZ) / (1 - DZ));
+// ---- touch controls: left stick drives (field view, robot-centric like the sticks), right stick turns
+const touch = { lx: 0, ly: 0, rx: 0, intake: false, reverse: false, spin: false, fire: false };
+const isTouch = matchMedia("(pointer: coarse)").matches;
+function bindStick(el, onMove) {
+  const knob = el.querySelector("i"); let id = null;
+  const set = (e) => {
+    const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, R = r.width / 2;
+    let dx = (e.clientX - cx) / R, dy = (e.clientY - cy) / R; const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; }
+    knob.style.transform = `translate(${dx * R * 0.6}px, ${dy * R * 0.6}px)`; onMove(dx, dy);
+  };
+  el.addEventListener("pointerdown", (e) => { id = e.pointerId; el.setPointerCapture(id); set(e); e.preventDefault(); });
+  el.addEventListener("pointermove", (e) => { if (e.pointerId === id) set(e); });
+  const end = (e) => { if (e.pointerId !== id) return; id = null; knob.style.transform = ""; onMove(0, 0); };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+}
+bindStick($("stickL"), (x, y) => { touch.lx = x; touch.ly = y; });
+bindStick($("stickR"), (x) => { touch.rx = x * 0.8; });
+document.querySelectorAll(".tbtns button").forEach((b) => {
+  const k = b.dataset.b, on = (v) => { touch[k] = v; b.classList.toggle("on", v); };
+  b.addEventListener("pointerdown", (e) => { b.setPointerCapture(e.pointerId); on(true); e.preventDefault(); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => b.addEventListener(ev, () => on(false)));
+});
+function rumble(seconds, strength) {
+  try {
+    const gpad = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find((g) => g && g.connected);
+    if (gpad && gpad.vibrationActuator) gpad.vibrationActuator.playEffect("dual-rumble", { duration: seconds * 1000, strongMagnitude: strength, weakMagnitude: strength });
+    else if (isTouch && navigator.vibrate) navigator.vibrate(seconds * 1000);
+  } catch (_) { /* no haptics: the LED still shows it */ }
+}
 function readPad(dt) {
   const p = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, buttons: 0 };
   let gpad = null;
@@ -669,6 +707,12 @@ function readPad(dt) {
   if (keys.has("Space")) p.buttons |= 1;
   if (keys.has("KeyI")) p.buttons |= 1 << 6;
   if (keys.has("KeyK")) p.buttons |= 1 << 7;
+  if (touch.lx || touch.ly) { p.lx = touch.lx; p.ly = touch.ly; }
+  if (touch.rx) p.rx = touch.rx;
+  if (touch.intake) p.rt = 1;
+  if (touch.reverse) p.lt = 1;
+  if (touch.spin) p.buttons |= 1 << 5;
+  if (touch.fire) p.buttons |= 1 | (1 << 5);
   if (keys.has("ArrowLeft")) look.yaw += dt * 1.4; if (keys.has("ArrowRight")) look.yaw -= dt * 1.4;
   if (keys.has("ArrowUp")) look.pitch += dt * 1.0; if (keys.has("ArrowDown")) look.pitch -= dt * 1.0;
   return p;
@@ -685,32 +729,89 @@ $("setupForm").addEventListener("submit", async (e) => {
     opponentPersonality: $("opp").value, partnerPersonality: "coordinated", partnerInstruction: $("instr").value, uncertainty: "realistic" });
   state.elec = []; state.running = true; state.overhead = false;
   placeDriver();
-  ["hud", "conn", "keys", "viewBtn"].forEach((id) => { $(id).hidden = false; });
+  ["hud", "conn", "keys", "viewBtns"].forEach((id) => { $(id).hidden = false; });
+  $("touch").hidden = !isTouch; document.body.classList.toggle("touch-on", isTouch);
   $("setup").hidden = true; $("toast").hidden = true; $("report").hidden = true;
   renderUpdates();   // hides the update bar for the duration of the match
+  audio.start(); lastMatchT = -99; perf.reset();
   canvas.focus();
 });
 let last = performance.now(), elecT = -1, lastSize = "";
+// everything that follows one simulation step: poses, HUD, hints, sound cues, electrical log, end
+function afterStep(done) {
+  draw(state.sim.frame());
+  const h = state.sim.hud();
+  $("timer").textContent = h.timer; $("phase").textContent = h.phase.replace("_", " ") + (state.mode === "practice" ? " · practice" : "");
+  $("sRed").textContent = h.red; $("sBlue").textContent = h.blue;
+  $("connText").textContent = h.connection; $("conn").classList.toggle("bad", h.connection !== "Connected");
+  const mt = state.sim.frame()[0] - 3.0;   // match time (the browser build starts the match after 3 s of pre-match)
+  cueAt(mt);
+  const hint = h.phase === "AUTO" && state.mode === "competition" ? "AUTO: your robot has no autonomous program here, so it waits. You drive when TELEOP starts at 2:00."
+    : h.phase === "TRANSITION" ? "Pick up the controller: TELEOP starts in a few seconds." : "";
+  $("hint").textContent = hint; $("hint").hidden = !hint;
+  const el = state.sim.elec();
+  if (el[0] - elecT >= 0.1) { elecT = el[0]; state.elec.push(Array.from(el)); }   // stored now, shown only after the match
+  if (done) finish();
+}
 function frame(now) {
   if (window.__gpPause) { last = now; requestAnimationFrame(frame); return; }   // test hook: frozen for screenshots
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (state.running && state.sim) {
     state.sim.setPad(readPad(dt));
-    const done = state.sim.step(dt);
-    draw(state.sim.frame());
-    const h = state.sim.hud();
-    $("timer").textContent = h.timer; $("phase").textContent = h.phase.replace("_", " ") + (state.mode === "practice" ? " · practice" : "");
-    $("sRed").textContent = h.red; $("sBlue").textContent = h.blue;
-    $("connText").textContent = h.connection; $("conn").classList.toggle("bad", h.connection !== "Connected");
-    const el = state.sim.elec();
-    if (el[0] - elecT >= 0.1) { elecT = el[0]; state.elec.push(Array.from(el)); }   // stored now, shown only after the match
-    if (done) finish();
+    afterStep(state.sim.step(dt));
   }
   applyLook();
   resize();
   composer.render();
+  if (state.running) perf.sample(dt);
   requestAnimationFrame(frame);
 }
+// ---- keep it playable: if frames are slow during a match, step the graphics down once per level
+const perf = { n: 0, sum: 0, reset() { this.n = 0; this.sum = 0; }, sample(dt) {
+  this.n++; this.sum += dt;
+  if (this.n < 150) return;
+  const ms = this.sum / this.n * 1000; this.reset();
+  const order = ["ultra", "high", "balanced"], i = order.indexOf(state.gfx);
+  if (ms > 33 && i < order.length - 1) {
+    applyQuality(order[i + 1]); $("gfx").value = order[i + 1];
+    $("note2").textContent = `Graphics lowered to ${order[i + 1]} for smoother play (${Math.round(1000 / ms)} fps)`;
+    $("note2").hidden = false; setTimeout(() => { $("note2").hidden = true; }, 6000);
+  }
+} };
+// ---- match sound cues (season.audioCues timing; synthesized substitutes, not the official recordings)
+const audio = { ctx: null, start() { try { this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)(); this.ctx.resume(); } catch (_) { this.ctx = null; } } };
+function tone(freq, start, dur, type = "sine", gain = 0.18, slide = 0) {
+  const c = audio.ctx; if (!c) return;
+  const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + start;
+  o.type = type; o.frequency.setValueAtTime(freq, t0); if (slide) o.frequency.linearRampToValueAtTime(freq + slide, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+const CUE_SOUND = {
+  "Cavalry Charge": () => [392, 523, 659, 784, 659, 784].forEach((f, i) => tone(f, i * 0.16, i === 5 ? 0.6 : 0.14, "triangle", 0.22)),
+  "Buzzer x3": () => [0, 0.45, 0.9].forEach((t) => tone(110, t, 0.35, "square", 0.12)),
+  "3 Bells": () => [0, 0.5, 1.0].forEach((t) => { tone(1320, t, 1.1, "sine", 0.2); tone(2640, t, 0.6, "sine", 0.06); }),
+  "Chime": () => { tone(1046, 0, 1.2, "sine", 0.2); tone(1568, 0.25, 1.2, "sine", 0.15); },
+  "Train Whistle": () => { tone(587, 0, 1.0, "sawtooth", 0.08, 20); tone(740, 0, 1.0, "sawtooth", 0.07, 20); },
+  "3-second Buzzer": () => tone(98, 0, 3.0, "square", 0.12),
+};
+let lastMatchT = -99;
+function cueAt(mt) {
+  for (const c of season.audioCues || []) {
+    if (c.atMatchTime_s < 0 || !CUE_SOUND[c.cue]) continue;
+    if (lastMatchT < c.atMatchTime_s && mt >= c.atMatchTime_s) CUE_SOUND[c.cue]();
+  }
+  lastMatchT = mt;
+}
+function leaveMatch() {
+  if (!state.running) return;
+  state.running = false;
+  ["hud", "conn", "keys", "viewBtns", "touch", "hint"].forEach((id) => { $(id).hidden = true; });
+  document.body.classList.remove("touch-on");
+  $("setup").hidden = false; renderUpdates();
+}
+$("leaveBtn").onclick = leaveMatch;
+addEventListener("keydown", (e) => { if (e.code === "Escape" && state.running) leaveMatch(); });
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight, key2 = w + "x" + h + "@" + renderer.getPixelRatio();
   if (key2 === lastSize) return;
@@ -718,8 +819,8 @@ function resize() {
   renderer.setSize(w, h, false); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h);
   camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
 }
-function finish() { state.running = false; $("keys").hidden = true; $("toast").hidden = false; renderUpdates(); }
-$("dismiss").onclick = () => { $("toast").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtn"].forEach((id) => { $(id).hidden = true; }); };
+function finish() { state.running = false; ["keys", "touch", "hint"].forEach((id) => { $(id).hidden = true; }); $("toast").hidden = false; renderUpdates(); }
+$("dismiss").onclick = () => { $("toast").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtns"].forEach((id) => { $(id).hidden = true; }); };
 $("openReport").onclick = () => { $("toast").hidden = true; renderReport(); $("report").hidden = false; };
 
 // ================= post-match report =================
@@ -760,7 +861,7 @@ function renderReport() {
     <div class="row"><span class="parsed">Dashed lines: TELEOP start, FLOWER unlock (1:00), final 20 s.</span><button type="button" id="again">Set up another match</button></div>`;
   chart($("cV"), [{ i: 1, color: "#f2c230" }, { i: 3, color: "#4fbf7a" }], "V  battery · hub");
   chart($("cI"), [{ i: 2, color: "#e0453a" }], "A  battery");
-  $("again").onclick = () => { $("report").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtn"].forEach((id) => { $(id).hidden = true; }); };
+  $("again").onclick = () => { $("report").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtns"].forEach((id) => { $(id).hidden = true; }); };
 }
 
 
@@ -840,5 +941,5 @@ requestAnimationFrame(frame);
 // test hook for automated screenshots (no effect on play)
 window.__gp = { THREE, scene, camera, state, draw, placeDriver, look, robots,
   renderFrame: (noLook) => { if (!noLook) applyLook(); resize(); composer.render(); },
-  advance: (s) => { for (let t = 0; t < s; t += 0.05) { state.sim.setPad(readPad(0.05)); state.sim.step(0.05); } draw(state.sim.frame()); } };
+  advance: (s) => { for (let t = 0; t < s && state.running; t += 0.05) { state.sim.setPad(readPad(0.05)); afterStep(state.sim.step(0.05)); } } };
 </script>

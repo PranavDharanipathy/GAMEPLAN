@@ -74,7 +74,12 @@ private:
     Perceived perceiveSelf(World& w, int self);
     void drive(World& w, int self, Vec2 goal, double goalHeading, double speedFrac, bool faceGoal);
     void setMechanisms(World& w, int self, double t);
+public:
+    // Ballistic solution for this robot's launcher (drag + Magnus) to `target`: hood fraction,
+    // flywheel surface speed and the heading to face. Also used by the browser's built-in TeleOp
+    // shooter assist, the way a team's odometry-based shooter code would.
     bool solveShot(World& w, int self, const Vec3& target, double& hoodFrac, double& flySurface, double& yaw);
+private:
     int chooseElement(World& w, int self, double t, bool nectarOnly);
     Personality p_;
     double difficulty_;

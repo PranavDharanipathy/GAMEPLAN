@@ -25,8 +25,11 @@ struct Pad { float lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0; int buttons =
 Pad gPad;
 
 // Built-in driver mapping for the web build (not team code):
-// left stick translate, right stick X rotate, RT intake, LT reverse intake, RB spin launcher,
-// A open gate (feed), D-pad up/down hood.
+// left stick translate, right stick X rotate, RT intake, LT reverse intake, A open gate (feed).
+// RB = shooter assist, as competitive teams program it: while held, the flywheel speed and hood
+// angle follow the robot's distance to its own HIVE's up-facing CELL; the driver still has to turn
+// to face it and fire. D-pad up/down trims the hood. A status LED on the robot (and gamepad rumble)
+// says when the wheel is at speed and the robot is pointed at the CELL.
 class BuiltInTeleop : public AIController {
 public:
     BuiltInTeleop(uint64_t seed, bool competition)
@@ -60,12 +63,35 @@ public:
                 r.ports[r.joints[mech.joint].motor].power = gPad.lt > 0.1 ? -1.0 : ((gPad.rt > 0.1 || (gPad.buttons & 1)) ? 1.0 : 0.0);
             if (mech.type == MechType::Flywheel && mech.joint >= 0) {
                 int mi = r.joints[mech.joint].motor;
+                const GearedJoint& j = r.joints[mech.joint];
+                double maxSurface = r.elec.motors[mi].spec.wFree() / j.ratio * mech.flyRadius;
+                bool assist = gPad.buttons & (1 << 5);
+                status_ = 0;
+                if (assist) {
+                    // the CELL that is facing up on our own HIVE right now (it flips when the HIVE tips)
+                    const SeasonDef& s = w.season();
+                    const HiveState& hs = w.hive(r.alliance);
+                    double side = s.hives[int(r.alliance)].cells[hs.upCell].side == "audience" ? -1 : 1;
+                    Vec3 target{s.hives[int(r.alliance)].pivot.x, side * s.cellOffsetY, s.cellCaptureHeight};
+                    double hood, fly, yaw;
+                    if (solveShot(w, self, target, hood, fly, yaw)) {
+                        assistHood_ = hood; assistFly_ = fly; aimYaw_ = yaw; solved_ = true;
+                    } else {
+                        assistFly_ = maxSurface * 0.75; solved_ = false;   // out of range: spin up anyway
+                        aimYaw_ = std::atan2(target.y - r.pos.y, target.x - r.pos.x);
+                    }
+                    double cur = j.w * mech.flyRadius;
+                    bool atSpeed = std::fabs(cur - assistFly_) < 0.015 * assistFly_;
+                    bool aimed = std::fabs(wrapAngle(aimYaw_ - r.heading)) < 0.04;
+                    status_ = solved_ && atSpeed && aimed && hoodSettled(r) ? 2 : 1;
+                }
                 r.ports[mi].mode = RunMode::RunUsingEncoder;
-                r.ports[mi].power = (gPad.buttons & (1 << 5)) ? flyPower_ : 0.0;
+                r.ports[mi].power = assist ? clampd(assistFly_ / std::max(maxSurface, 1e-6), 0.0, 1.0) : 0.0;
             }
             if (mech.type == MechType::Hood && !mech.servos.empty()) {
-                if (gPad.buttons & (1 << 6)) hood_ = std::min(1.0, hood_ + dt * 0.5);
-                if (gPad.buttons & (1 << 7)) hood_ = std::max(0.0, hood_ - dt * 0.5);
+                if (gPad.buttons & (1 << 6)) trim_ = std::min(0.3, trim_ + dt * 0.25);
+                if (gPad.buttons & (1 << 7)) trim_ = std::max(-0.3, trim_ - dt * 0.25);
+                hood_ = clampd(((gPad.buttons & (1 << 5)) ? assistHood_ : 0.5) + trim_, 0.0, 1.0);
                 auto& s = r.elec.servos[mech.servos[0]];
                 s.pwmEnabled = true;
                 s.pulseUs = 600 + 1800 * hood_;
@@ -77,7 +103,18 @@ public:
             }
         }
     }
-    double hood_ = 0.5, flyPower_ = 0.62;
+    // the hood servo has reached (and holds) the commanded angle
+    bool hoodSettled(const Robot& r) const {
+        for (auto& m : r.mechs)
+            if (m.type == MechType::Hood && !m.servos.empty()) {
+                const ServoUnit& sv = r.elec.servos[m.servos[0]];
+                return std::fabs(sv.angle - sv.targetAngle()) < 0.02 && std::fabs(sv.omega) < 0.2;
+            }
+        return true;
+    }
+    double hood_ = 0.5, trim_ = 0, assistHood_ = 0.5, assistFly_ = 0, aimYaw_ = 0;
+    bool solved_ = false;
+    int status_ = 0;   // 0 shooter off, 1 spinning / not ready, 2 at speed and aimed
 private:
     bool competition_;
 };
@@ -90,6 +127,7 @@ std::string gText;
 double gPreMatch = 3.0;
 int gUser = 0;
 std::shared_ptr<AIController> gPartner;
+std::shared_ptr<BuiltInTeleop> gHuman;
 
 Pose2 startPose(const SeasonDef& s, Alliance a, int k) {
     double x = (a == Alliance::Red ? -1 : 1) * (s.half - 0.217);
@@ -120,6 +158,7 @@ GP_EXPORT(gp_init) int gp_init(const char* season, const char* comps, const char
     Alliance oa = other(ua);
     double diff = st["difficulty"].num(0.6);
     auto human = std::make_shared<BuiltInTeleop>(wc.seed, wc.competitionMode);
+    gHuman = human;
     gPartner = std::make_shared<AIController>(Personality::preset(st["partnerPersonality"].str("coordinated")), diff,
                                               StrategyDirectives::parse(st["partnerInstruction"].str("")), wc.seed, "partner");
     auto o1 = std::make_shared<AIController>(Personality::preset(st["opponentPersonality"].str("aggressive")), diff, StrategyDirectives(), wc.seed, "opp1");
@@ -156,7 +195,7 @@ GP_EXPORT(gp_step) int gp_step(double dt) {
 // Frame buffer layout (floats):
 // [0] t [1] phase [2] scoreRed [3] scoreBlue [4] nRobots [5] nElements [6] nCells
 // robots: x y heading alliance held tipped length width height intakeAngle flyAngle hoodAngle
-//         wheelAngle[4] (lf rf lb rb) pitch  (17 each)
+//         wheelAngle[4] (lf rf lb rb) pitch shooterStatus  (18 each)
 // elements: x y z kind(0 pollen,1 red nectar,2 blue nectar) radius visible qw qx qy qz squish nx ny nz (14 each)
 // cells: x y z up(1/0) alliance  (5 each), then hiveAngle[2] (rad about +x through the pivot)
 GP_EXPORT(gp_frame) float* gp_frame() {
@@ -193,6 +232,9 @@ GP_EXPORT(gp_frame) float* gp_frame() {
         }
         for (double v : wa) gFrame.push_back(float(v));
         gFrame.push_back(float(r.pitch));
+        // shooter status LED: 0 off, 1 spinning up / not aimed, 2 ready (user robot's TeleOp only)
+        size_t idx = size_t(&s - &w.robots()[0]);
+        gFrame.push_back(float(idx == size_t(gUser) && gHuman ? gHuman->status_ : 0));
     }
     for (auto& e : w.elements()) {
         bool vis = e.state != ElemState::HumanArea && e.state != ElemState::OutOfField;

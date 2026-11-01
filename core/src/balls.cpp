@@ -161,7 +161,9 @@ void World::launchElement(int r, int mech, int id) {
     const double nominalR = (e.type == ElemType::Pollen ? season_.pollenD : season_.nectarD) / 2;
     // contact between wheel and hood: squeeze grows with this ball's size; grip saturates with squeeze
     double comp = std::max(0.0005, fm.compression + 2.0 * (e.radius - nominalR) + (e.type == ElemType::Nectar ? 0.004 : 0.0));
-    auto grip = [](double c) { return 1.0 - std::exp(-c / 0.004); };
+    // grip saturates with squeeze: a typical compression (~6 mm) is near saturation, so normal size
+    // variation (sigma 0.4 mm) changes exit speed by ~2 % (estimate; measure with real elements)
+    auto grip = [](double c) { return 1.0 - std::exp(-c / 0.002); };
     double gripF = grip(comp) / grip(std::max(0.0005, fm.compression));
     double J = j.jl + j.jmOut();
     double mr2 = e.mass * fm.flyRadius * fm.flyRadius;

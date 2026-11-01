@@ -3,6 +3,17 @@
   "note": "Newest first. tools/release.py publishes the first entry as the live 'latest' record that running apps watch.",
   "releases": [
     {
+      "version": "0.6.1",
+      "date": "2026-11-01",
+      "required": false,
+      "notes": [
+        "Shooter assist: hold R / RB and the flywheel and hood follow your distance to your HIVE; a light on the robot turns green when ready",
+        "Touch controls for phones and tablets",
+        "Match sound cues, an AUTO hint, Leave match (Esc)",
+        "Graphics step down automatically if the frame rate drops"
+      ]
+    },
+    {
       "version": "0.6.0",
       "date": "2026-11-01",
       "required": false,

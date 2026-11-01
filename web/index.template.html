@@ -41,7 +41,22 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .conn.bad i { background: var(--warn); }
 .keys { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
   font-family: var(--font-mono); font-size: 11px; color: var(--muted); background: rgba(13,16,19,.7); padding: 6px 9px; border-radius: 4px; max-width: calc(100% - 32px); }
-.viewbtn { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); }
+.viewbtns { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 8px; }
+.hint { position: absolute; top: calc(92px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
+  background: rgba(13,16,19,.8); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; font-size: 13px; color: var(--fg); text-align: center; pointer-events: none; }
+.note2 { position: absolute; top: calc(92px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); font-size: 12px; color: var(--muted);
+  background: rgba(13,16,19,.8); border-radius: 4px; padding: 6px 10px; pointer-events: none; }
+/* touch controls (phones / tablets): drive stick, turn stick, mechanism buttons */
+.touch { position: absolute; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 0 max(14px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+.stick { width: 132px; height: 132px; border-radius: 50%; background: rgba(233,236,239,.08); border: 1px solid rgba(233,236,239,.22); position: relative; pointer-events: auto; touch-action: none; }
+.stick i { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px; border-radius: 50%; background: rgba(233,236,239,.35); }
+.tbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; pointer-events: auto; margin-bottom: 8px; }
+.tbtns button { background: rgba(29,36,43,.85); color: var(--fg); border: 1px solid var(--line); min-width: 72px; padding: 12px 10px; touch-action: none; }
+.tbtns button.on { background: var(--pollen); color: var(--bg); }
+.tbtns .fire { border-color: var(--pollen); }
+body.touch-on .keys { display: none; }
+body.touch-on .viewbtns { bottom: auto; top: calc(14px + env(safe-area-inset-top, 0px)); }
 button { font: 600 14px var(--font-body); color: var(--bg); background: var(--pollen); border: 0; border-radius: 4px; padding: 9px 16px; cursor: pointer; }
 button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--pollen); outline-offset: 2px; }
@@ -113,8 +128,18 @@ body.has-updbar .sheet { padding-top: 64px; }
     <div class="clock"><div class="timer" id="timer">2:30</div><div class="phase" id="phase">Pre-match</div></div>
     <div class="score blue" id="sBlue">0</div>
   </div>
-  <div class="keys" id="keys" hidden>WASD drive · Q/E turn · Shift intake · C reverse · R spin launcher · Space feed · I/K hood · drag or arrows to look</div>
-  <button class="ghost viewbtn" id="viewBtn" hidden>Overhead view</button>
+  <div class="keys" id="keys" hidden>WASD drive · Q/E turn · Shift intake · C reverse · hold R shooter (robot light green = ready) · Space fire · I/K trim hood · drag or arrows to look · Esc leave</div>
+  <div class="viewbtns" id="viewBtns" hidden><button class="ghost" id="leaveBtn">Leave match</button><button class="ghost" id="viewBtn">Overhead view</button></div>
+  <div class="hint" id="hint" hidden></div>
+  <div class="note2" id="note2" hidden></div>
+  <div class="touch" id="touch" hidden>
+    <div class="stick" id="stickL" aria-label="Drive stick"><i></i></div>
+    <div class="tbtns">
+      <button type="button" data-b="intake">Intake</button><button type="button" data-b="reverse">Out</button>
+      <button type="button" data-b="spin">Shooter</button><button type="button" data-b="fire" class="fire">Fire</button>
+    </div>
+    <div class="stick" id="stickR" aria-label="Turn stick"><i></i></div>
+  </div>
 
   <div class="sheet" id="setup">
     <form class="card" id="setupForm">
