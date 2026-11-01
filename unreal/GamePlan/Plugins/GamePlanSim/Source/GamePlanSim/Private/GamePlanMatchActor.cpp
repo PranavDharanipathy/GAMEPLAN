@@ -99,6 +99,7 @@ void AGamePlanMatchActor::BuildField()
         I->SetStaticMesh(Sphere);
         I->SetupAttachment(RootComponent);
         I->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        I->NumCustomDataFloats = 4;   // squish direction (UE frame) + compression / radius, read by M_GamePlanBall's WPO
         I->RegisterComponent();
         return I;
     };
@@ -143,12 +144,31 @@ void AGamePlanMatchActor::SyncVisuals()
             FRotator(FMath::RadiansToDegrees(R.pitch), -FMath::RadiansToDegrees(R.heading), FMath::RadiansToDegrees(R.roll)));
     }
     Pollen->ClearInstances(); RedNectar->ClearInstances(); BlueNectar->ClearInstances();
+    const gp::SeasonDef& Sd = W.season();
     for (const gp::Element& E : W.elements()) {
         if (E.state == gp::ElemState::HumanArea || E.state == gp::ElemState::OutOfField) continue;
-        const FTransform T(FRotator::ZeroRotator, GamePlanCoords::ToUE(E.p), FVector(E.radius * 2));
-        (E.type == gp::ElemType::Pollen ? Pollen : (E.color == gp::Alliance::Red ? RedNectar : BlueNectar))->AddInstance(T, true);
+        // Balls are always drawn - also inside robots (on the ball path) and in CELLS/FLOWERS.
+        // Mesh = official CAD element (Content/GamePlan/Field/Pollen|Nectar, 1 uu = 1 cm, unit scale at
+        // nominal size); scale by this ball's actual radius, rotate by its simulated orientation.
+        const double Nominal = (E.type == gp::ElemType::Pollen ? Sd.pollenD : Sd.nectarD) / 2;
+        const FTransform T(GamePlanCoords::ToUE(E.q), GamePlanCoords::ToUE(E.p), FVector(E.radius / Nominal));
+        UInstancedStaticMeshComponent* I = E.type == gp::ElemType::Pollen ? Pollen : (E.color == gp::Alliance::Red ? RedNectar : BlueNectar);
+        const int32 Idx = I->AddInstance(T, true);
+        const FVector N = GamePlanCoords::ToUEDir(E.squishN);
+        I->SetCustomData(Idx, { float(N.X), float(N.Y), float(N.Z), float(E.squish / E.radius) }, true);
     }
     const gp::SeasonDef& S = W.season();
+    // HIVE bodies (official CAD, imported with their pivot at the HIVE axle): rigid rotation about +x
+    for (int Hv = 0; Hv < 2 && Hv < HiveBodies.Num(); ++Hv) {
+        if (!HiveBodies[Hv]) continue;
+        const gp::HiveState& Hs = W.hive(gp::Alliance(Hv));
+        const int Aud = S.hives[Hv].cells[0].side == "audience" ? 0 : 1;
+        double Down = Hs.upCell == Aud ? 0.0 : 1.0;
+        if (Hs.tipping) { const double F = FMath::Clamp((W.time() - Hs.tipStart) / S.tipSettleS, 0.0, 1.0); Down = Hs.upCell == Aud ? F : 1.0 - F; }
+        const double Angle = Down * Hs.stateAngle - HiveCadAngle[Hv];
+        HiveBodies[Hv]->SetWorldLocationAndRotation(GamePlanCoords::ToUE(S.hives[Hv].pivot),
+            GamePlanCoords::ToUE(gp::Vec3{1, 0, 0}, Angle));
+    }
     for (int Hv = 0; Hv < 2; ++Hv) for (int C = 0; C < 2; ++C) {
         const gp::CellDef& Cd = S.hives[Hv].cells[C];
         const gp::Vec3 P = W.tagPosition(Cd.tags[0]);   // cell pose follows the same rigid HIVE rotation as its tags

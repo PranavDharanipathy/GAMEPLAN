@@ -65,6 +65,10 @@ private:
     UPROPERTY() UInstancedStaticMeshComponent* BlueNectar = nullptr;
     UPROPERTY() TArray<UStaticMeshComponent*> RobotBodies;
     UPROPERTY() TArray<UStaticMeshComponent*> HiveCells;
+    // Official HIVE CAD (one scene component per HIVE, pivot at the axle). Assign in the level; when
+    // empty, the simple CELL boxes are used. The CAD has the red AUDIENCE and blue SCORING cells up.
+    UPROPERTY(EditAnywhere, Category = "GamePlan|Field") TArray<USceneComponent*> HiveBodies;
+    double HiveCadAngle[2] = {0.0, 1.0472};
     bool bFinished = false;
     FString LastReport, LastError;
 };

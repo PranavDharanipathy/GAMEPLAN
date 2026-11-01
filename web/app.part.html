@@ -1,0 +1,572 @@
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="application/json" id="seasonJson">/*SEASON_JSON*/</script>
+<script type="application/json" id="compsJson">/*COMPONENTS_JSON*/</script>
+<script type="application/json" id="robotJson">/*ROBOT_JSON*/</script>
+<script type="application/json" id="tagJson">/*TAG_JSON*/</script>
+<script type="application/json" id="cadColorJson">/*CAD_COLOR_JSON*/</script>
+<script>/*WASM_LOADER*/</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+const $ = (id) => document.getElementById(id);
+const season = JSON.parse($("seasonJson").textContent);
+const TAGS = JSON.parse($("tagJson").textContent);
+const CADCOL = JSON.parse($("cadColorJson").textContent || "{}");
+const state = { alliance: "red", mode: "competition", sim: null, running: false, overhead: false, elec: [], gfx: "high" };
+let wasmBytes = null;
+
+// ================= setup form =================
+const seg = (a, b, key, va, vb, after) => {
+  $(a).onclick = () => { state[key] = va; $(a).setAttribute("aria-pressed", "true"); $(b).setAttribute("aria-pressed", "false"); after && after(); };
+  $(b).onclick = () => { state[key] = vb; $(b).setAttribute("aria-pressed", "true"); $(a).setAttribute("aria-pressed", "false"); after && after(); };
+};
+seg("aRed", "aBlue", "alliance", "red", "blue", () => placeDriver());
+seg("mComp", "mPrac", "mode", "competition", "practice", () => {
+  $("modeText").textContent = state.mode === "competition"
+    ? "Competition: your robot sits still during AUTO (no autonomous program in the browser build), you drive in TELEOP."
+    : "Practice: you may drive during AUTO. Results are labelled practice and are not competition-accurate.";
+});
+const showParse = () => {
+  if (!state.sim) return;
+  const d = state.sim.parseInstruction($("instr").value);
+  $("parsed").innerHTML = d.matched.length
+    ? d.matched.map((m) => "<b>✓</b> " + m.replace(/</g, "&lt;")).join("<br>")
+    : (d.text ? "Not understood by the partner AI yet; it will play its default strategy. Try phrases like \"defend\", \"prioritize pollen\", \"stay out of my way\", \"do nothing\"." : "");
+};
+$("instr").addEventListener("input", showParse);
+$("gfx").addEventListener("change", () => applyQuality($("gfx").value));
+fetch("gameplan.wasm").then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+  .then(async (b) => { wasmBytes = b; state.sim = await GamePlanWasm.create(b, (l) => console.log(l)); $("loadState").textContent = "Simulation ready"; $("startBtn").disabled = false; showParse(); })
+  .catch((e) => { $("loadState").textContent = "Could not load the simulation (" + e.message + "). Reload the page to retry."; });
+
+// ================= renderer =================
+const canvas = $("view");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.82;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+{   // venue backdrop: dark hall with a faint warm glow from the stands and lighting truss
+  const c = document.createElement("canvas"); c.width = 16; c.height = 256; const g = c.getContext("2d");
+  const gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, "#030405"); gr.addColorStop(0.45, "#0b0e12"); gr.addColorStop(0.62, "#1a1d22"); gr.addColorStop(0.7, "#0e1013"); gr.addColorStop(1, "#08090b");
+  g.fillStyle = gr; g.fillRect(0, 0, 16, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = t;
+}
+scene.fog = new THREE.Fog(0x07090b, 14, 34);
+const camera = new THREE.PerspectiveCamera(75, 1, 0.03, 80);
+// image-based lighting: a neutral indoor environment for reflections on metal, plastic and polycarbonate
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+// GamePlan field frame (x to blue wall, y away from audience, z up) inside the three.js world (y up)
+const gp = new THREE.Group(); gp.rotation.x = -Math.PI / 2; scene.add(gp);
+const T = (x, y, z) => new THREE.Vector3(x, z, -y);
+const F = season.field, H = F.halfSize_m;
+
+// venue lighting: an overhead key (crisp contact shadows) + two truss spots + soft sky fill
+const key = new THREE.DirectionalLight(0xfff4e8, 1.7);
+key.position.set(1.4, 9, 2.2); key.castShadow = true;
+Object.assign(key.shadow.camera, { left: -2.7, right: 2.7, top: 2.7, bottom: -2.7, near: 1, far: 20 });
+key.shadow.bias = -0.00025; key.shadow.normalBias = 0.015; key.shadow.radius = 3;
+scene.add(key, key.target);
+const spots = [[-5, 6.5, 4], [5, 6.5, -4]].map(([x, y, z]) => {
+  const s = new THREE.SpotLight(0xffffff, 150, 0, 0.62, 0.55, 2);
+  s.position.set(x, y, z); s.target.position.set(0, 0, 0); s.castShadow = true;
+  s.shadow.bias = -0.0002; s.shadow.normalBias = 0.02; s.shadow.radius = 4;
+  scene.add(s, s.target); return s;
+});
+scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x1a1c1e, 0.2));
+
+// post-processing: MSAA scene target, ground-truth ambient occlusion (Ultra), tone mapping
+let composer = null, aoPass = null;
+function buildComposer() {
+  const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: 4 });
+  composer = new EffectComposer(renderer, rt);
+  composer.addPass(new RenderPass(scene, camera));
+  aoPass = new GTAOPass(scene, camera, 2, 2);
+  aoPass.updateGtaoMaterial({ radius: 0.35, distanceExponent: 1.5, thickness: 0.6, scale: 1.0 });
+  composer.addPass(aoPass);
+  composer.addPass(new OutputPass());
+}
+function applyQuality(q) {
+  state.gfx = q;
+  const ultra = q === "ultra", bal = q === "balanced";
+  renderer.setPixelRatio(Math.min(bal ? 1 : 2, window.devicePixelRatio || 1));
+  key.shadow.mapSize.set(ultra ? 4096 : bal ? 1024 : 2048, ultra ? 4096 : bal ? 1024 : 2048);
+  spots.forEach((s) => { s.castShadow = !bal; s.shadow.mapSize.set(ultra ? 2048 : 1024, ultra ? 2048 : 1024); });
+  [key, ...spots].forEach((l) => { if (l.shadow.map) { l.shadow.map.dispose(); l.shadow.map = null; } });
+  if (!composer) buildComposer();
+  aoPass.enabled = ultra;
+  lastSize = "";
+}
+
+// ================= materials (physically based; CAD colours where the STEP carries them) =================
+const M = {};
+const std = (o) => new THREE.MeshStandardMaterial(o);
+const phys = (o) => new THREE.MeshPhysicalMaterial(o);
+function noiseTex(size, base, amp, seed = 1) {   // fine foam / powder-coat texture
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  const g = c.getContext("2d"), img = g.createImageData(size, size);
+  let s = seed;
+  for (let i = 0; i < size * size; i++) { s = (s * 16807) % 2147483647; const v = base + (s / 2147483647 - 0.5) * amp; img.data.set([v, v, v, 255], i * 4); }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+M.tile = std({ color: 0x5f6266, roughness: 0.93, metalness: 0, bumpMap: noiseTex(256, 128, 90, 7), bumpScale: 0.6 });
+M.tile.bumpMap.repeat.set(9, 9);
+M.alu = std({ color: 0xc8cdd2, metalness: 1, roughness: 0.32 });
+M.aluDark = std({ color: 0x2c3036, metalness: 0.75, roughness: 0.42 });
+M.steel = std({ color: 0x9da3a8, metalness: 1, roughness: 0.25 });
+M.blackOxide = std({ color: 0x1b1c1e, metalness: 0.8, roughness: 0.45 });
+M.poly = phys({ color: 0xf4f8fb, metalness: 0, roughness: 0.04, transmission: 0.92, thickness: 0.003, ior: 1.585, transparent: true, side: THREE.DoubleSide });
+M.nylonBlack = std({ color: 0x18191a, roughness: 0.55 });
+M.whitePlastic = std({ color: 0xebebe8, roughness: 0.5 });
+M.acm = std({ color: 0xf1f1ee, roughness: 0.38, metalness: 0.05 });
+M.redPlastic = std({ color: 0xc8261e, roughness: 0.45 });
+M.bluePlastic = std({ color: 0x1f56c4, roughness: 0.45 });
+M.redSkin = phys({ color: 0xd2382e, roughness: 0.3, transmission: 0.35, thickness: 0.002, transparent: true, side: THREE.DoubleSide });
+M.blueSkin = phys({ color: 0x2f6fd8, roughness: 0.3, transmission: 0.35, thickness: 0.002, transparent: true, side: THREE.DoubleSide });
+M.redTape = std({ color: 0xc8231c, roughness: 0.85 });
+M.blueTape = std({ color: 0x1c4fbf, roughness: 0.85 });
+M.rubber = std({ color: 0x141414, roughness: 0.82 });
+M.floor = std({ color: 0x17191c, roughness: 0.95, bumpMap: noiseTex(256, 128, 40, 3), bumpScale: 0.4 });
+M.floor.bumpMap.repeat.set(30, 30);
+const cadColour = (name) => {   // colour assigned to this part in the official STEP, if any
+  const c = CADCOL[name.split("/").pop()];
+  return c && c.length ? new THREE.Color().setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace) : null;
+};
+function materialFor(name, group) {
+  const n = name.toLowerCase();
+  let m;
+  if (group === "tiles") m = M.tile;
+  else if (group === "tape") m = n.includes("red") ? M.redTape : M.blueTape;
+  else if (/glass|polycarb/.test(n)) m = M.poly;
+  else if (/rivet|screw|bolt|nut|washer|pin\b|quick release/.test(n)) m = /lock nut|black|oxide/.test(n) ? M.blackOxide : M.steel;
+  else if (/cable tie|plug|nylon/.test(n)) m = M.nylonBlack;
+  else if (/skin/.test(n)) m = M.whitePlastic;
+  else if (/goal rib/.test(n)) m = group.includes("red") ? M.redPlastic : M.bluePlastic;
+  else if (/acm|panel sticker/.test(n)) m = M.acm;
+  else if (/hips|flower|peanut|backstop/.test(n)) m = M.whitePlastic;
+  else if (/a-frame leg|top bar|under tile bar|sheet metal foot/.test(n)) m = M.alu;
+  else if (/top corner|frame foot|axle holder|damper holder|field bracket|rail/.test(n)) m = M.aluDark;
+  else if (/flower layer|backstop/.test(n)) m = M.whitePlastic;
+  else m = M.alu;
+  const cc = cadColour(name);
+  if (cc && m !== M.poly && group !== "tiles") { m = m.clone(); m.color = cc; }   // the designers' part colour
+  return m;
+}
+
+// ================= AprilTag stickers (real tag36h11 codes for IDs 30-45, SDK 12 cluster layout) =================
+function tagStickerTexture(ids) {
+  const IN = 0.0254, W = 17.0 * IN, Hh = 4.1 * IN, px = 1400;
+  const c = document.createElement("canvas"); c.width = px; c.height = Math.round(px * Hh / W);
+  const g = c.getContext("2d"); g.fillStyle = "#f7f7f5"; g.fillRect(0, 0, c.width, c.height);
+  const s = px / W, size = 3.25 * IN * s, cell = size / 10;
+  [-6.5, -2.75, 2.75, 6.5].forEach((xin, k) => {
+    const code = TAGS[ids[k]]; if (!code) return;
+    const x0 = (W / 2 + xin * IN) * s - size / 2, y0 = c.height / 2 - size / 2;
+    for (let r = 0; r < 10; r++) for (let q = 0; q < 10; q++) { g.fillStyle = code[r * 10 + q] === "1" ? "#f7f7f5" : "#111"; g.fillRect(x0 + q * cell, y0 + r * cell, cell + 0.6, cell + 0.6); }
+    g.fillStyle = "#555"; g.font = `${Math.round(cell * 0.9)}px IBM Plex Mono, monospace`; g.fillText(String(ids[k]), x0, y0 + size + cell * 1.1);
+  });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return { tex: t, W, Hh };
+}
+function applySticker(mesh, ids, pivot) {
+  const pos = mesh.geometry.attributes.position, n = pos.count;
+  const c = new THREE.Vector3(); for (let i = 0; i < n; i++) c.add(new THREE.Vector3().fromBufferAttribute(pos, i)); c.multiplyScalar(1 / n);
+  // plane normal by power iteration on the covariance (smallest axis = largest of the inverse proxy)
+  const cov = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) { v.fromBufferAttribute(pos, i).sub(c); const a = [v.x, v.y, v.z]; for (let r = 0; r < 3; r++) for (let q = 0; q < 3; q++) cov[r][q] += a[r] * a[q]; }
+  const mul = (m, x) => new THREE.Vector3(m[0][0] * x.x + m[0][1] * x.y + m[0][2] * x.z, m[1][0] * x.x + m[1][1] * x.y + m[1][2] * x.z, m[2][0] * x.x + m[2][1] * x.y + m[2][2] * x.z);
+  let e1 = new THREE.Vector3(1, 0.3, 0.2); for (let k = 0; k < 40; k++) e1 = mul(cov, e1).normalize();
+  const tr = cov[0][0] + cov[1][1] + cov[2][2];
+  const shifted = cov.map((row, r) => row.map((x, q) => (r === q ? tr : 0) - x));
+  let nrm = new THREE.Vector3(0.2, 0.3, 1); for (let k = 0; k < 60; k++) { nrm = mul(shifted, nrm); nrm.sub(e1.clone().multiplyScalar(nrm.dot(e1))).normalize(); }
+  nrm = e1.clone().cross(nrm).normalize();   // third axis = smallest variance = plane normal
+  if (nrm.dot(c.clone().sub(pivot)) < 0) nrm.negate();   // outward, away from the HIVE body
+  const up = new THREE.Vector3(0, 0, 1), yUp = up.clone().sub(nrm.clone().multiplyScalar(up.dot(nrm))).normalize();
+  const xr = yUp.clone().cross(nrm).normalize();          // right, as seen facing the tags
+  const { tex, W, Hh } = tagStickerTexture(ids);
+  const uv = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) { v.fromBufferAttribute(pos, i).sub(c); uv[2 * i] = 0.5 + v.dot(xr) / W; uv[2 * i + 1] = 0.5 + v.dot(yUp) / Hh; }
+  mesh.geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  mesh.material = std({ map: tex, roughness: 0.55 });
+}
+
+// ================= field from the official CAD =================
+const loader = new GLTFLoader();
+const hives = [null, null];
+const hiveCadAngle = [0, F.hives[1].initialUpCell.includes("scoring") ? F.hives[1].stateAngle_rad : 0];   // CAD pose: red audience up, blue scoring up
+const stickerIds = { "red goal april tag (audience)": [34, 35, 36, 37], "red goal april tag (scoring)": [30, 31, 32, 33],
+  "blue goal april tag (audience)": [38, 39, 40, 41], "blue goal april tag (scoring)": [42, 43, 44, 45] };
+function loadGroup(group, parent) {
+  return new Promise((res) => loader.load(`assets/field/${group}.glb`, (g) => {
+    g.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const nm = o.name || (o.parent && o.parent.name) || "";
+      o.material = materialFor(nm, group);
+      o.castShadow = group !== "tiles" && group !== "tape";
+      o.receiveShadow = true;
+      const lk = nm.split("/").pop().toLowerCase().replace(/^am-5888-(red|blue)[12]: /, "");
+      if (stickerIds[lk]) { const h = group === "hive_red" ? 0 : 1; const pv = F.hives[h].pivot; applySticker(o, stickerIds[lk], new THREE.Vector3(pv[0], pv[1], pv[2])); }
+    });
+    parent.add(g.scene); res(true);
+  }, undefined, () => res(false)));
+}
+const ballGeo = { pollen: null, nectar: null, pollen_lod1: null, nectar_lod1: null };
+async function loadField() {
+  $("assetState").textContent = "Loading official field CAD…";
+  const groups = ["perimeter", "tape", "frame", "flowers", "trays"];
+  buildTiles();
+  const ok = await Promise.all(groups.map((g) => loadGroup(g, gp)));
+  for (let h = 0; h < 2; h++) {
+    const pv = F.hives[h].pivot, piv = new THREE.Group(), inner = new THREE.Group();
+    piv.position.set(pv[0], pv[1], pv[2]); inner.position.set(-pv[0], -pv[1], -pv[2]);
+    piv.add(inner); gp.add(piv); hives[h] = piv;
+    ok.push(await loadGroup(h ? "hive_blue" : "hive_red", inner));
+  }
+  const geo = (name) => new Promise((res) => loader.load(`assets/field/${name}.glb`, (g) => { let m = null; g.scene.traverse((o) => { if (o.isMesh && !m) m = o.geometry; }); res(m); }, undefined, () => res(null)));
+  ballGeo.pollen = await geo("pollen"); ballGeo.nectar = await geo("nectar");
+  ballGeo.pollen_lod1 = await geo("pollen_lod1"); ballGeo.nectar_lod1 = await geo("nectar_lod1");
+  buildBalls();
+  if (ok.every(Boolean)) $("assetState").textContent = "";
+  else { $("assetState").textContent = "Some field CAD assets could not be loaded; showing simplified geometry for them."; fallbackField(); }
+}
+// FTC soft tiles: 6 x 6 interlocking 24 in EVA foam tiles (the CAD solids are too fine to decimate well)
+function buildTiles() {
+  const px = 2048, c = document.createElement("canvas"); c.width = c.height = px;
+  const g = c.getContext("2d"), n = 6, s = px / n;
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const v = 92 + Math.round((rnd() - 0.5) * 8); g.fillStyle = `rgb(${v},${v + 2},${v + 5})`; g.fillRect(i * s, j * s, s, s); }
+  const img = g.getImageData(0, 0, px, px);   // foam grain
+  for (let k = 0; k < img.data.length; k += 4) { const d = (rnd() - 0.5) * 10; img.data[k] += d; img.data[k + 1] += d; img.data[k + 2] += d; }
+  g.putImageData(img, 0, 0);
+  g.strokeStyle = "rgba(38,40,44,0.55)"; g.lineWidth = 2;
+  for (let i = 1; i < n; i++) for (const vert of [true, false]) {   // interlock teeth along every seam
+    g.beginPath();
+    for (let t = 0; t <= 48; t++) { const a = t * px / 48, b = i * s + (t % 2 ? 3 : -3); vert ? (t ? g.lineTo(b, a) : g.moveTo(b, a)) : (t ? g.lineTo(a, b) : g.moveTo(a, b)); }
+    g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const mat = std({ map: tex, roughness: 0.94, bumpMap: noiseTex(512, 128, 70, 5), bumpScale: 0.5 });
+  mat.bumpMap.repeat.set(12, 12);
+  const tiles = new THREE.Mesh(new THREE.BoxGeometry(2 * H, 2 * H, 0.0127), mat);
+  tiles.position.z = -0.0064; tiles.receiveShadow = true; gp.add(tiles);
+}
+function fallbackField() {   // only if the CAD assets are missing
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 2 * H), M.tile); floor.receiveShadow = true; gp.add(floor);
+}
+const venueFloor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), M.floor);
+venueFloor.position.z = -0.012; venueFloor.receiveShadow = true; gp.add(venueFloor);
+// painted zones the CAD doesn't include as solids (tape is in the CAD; GARDENS / ALLIANCE AREAS are floor markings)
+const zone = (b, color, z, op) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(b.xMax - b.xMin, b.yMax - b.yMin), std({ color, roughness: 0.9, transparent: op < 1, opacity: op })); m.position.set((b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, z); m.receiveShadow = true; gp.add(m); };
+zone(F.allianceAreas.red, 0x2a1513, -0.008, 1); zone(F.allianceAreas.blue, 0x121b2a, -0.008, 1);
+
+// ================= scoring elements: the official perforated balls, posed, spun and squished per ball =================
+const ballMats = {
+  0: phys({ color: 0xf2c418, roughness: 0.4, clearcoat: 0.25, clearcoatRoughness: 0.5, side: THREE.DoubleSide }),
+  1: phys({ color: 0xd3271f, roughness: 0.4, clearcoat: 0.25, clearcoatRoughness: 0.5, side: THREE.DoubleSide }),
+  2: phys({ color: 0x1d5fd6, roughness: 0.4, clearcoat: 0.25, clearcoatRoughness: 0.5, side: THREE.DoubleSide }),
+};
+// two levels of detail of the same official mesh: full hole detail near the camera, lighter far away
+const ballIM = {}, ballIMfar = {};
+function buildBalls() {
+  const fallback = new THREE.SphereGeometry(1, 32, 24);
+  [0, 1, 2].forEach((k) => {
+    for (const far of [false, true]) {
+      const g = k === 0 ? ((far && ballGeo.pollen_lod1) || ballGeo.pollen || fallback) : ((far && ballGeo.nectar_lod1) || ballGeo.nectar || fallback);
+      const im = new THREE.InstancedMesh(g, ballMats[k], k === 0 ? 64 : 24);
+      im.castShadow = im.receiveShadow = true; im.count = 0; im.frustumCulled = false;
+      im.userData.unitR = g === fallback ? 1 : (k === 0 ? 0.03556 : 0.045975);
+      gp.add(im); (far ? ballIMfar : ballIM)[k] = im;
+    }
+  });
+}
+const _cam = new THREE.Vector3();
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Matrix4(), _r = new THREE.Matrix4();
+function ballMatrix(fr, o, unitR) {
+  // squash along the contact normal, bulge sideways (volume ~ conserved): S = I + a n n^T + b (I - n n^T)
+  const r = fr[o + 4], sq = fr[o + 10], nx = fr[o + 11], ny = fr[o + 12], nz = fr[o + 13];
+  const a = -sq / r, b = 0.5 * sq / r;
+  _s.set(1 + b + (a - b) * nx * nx, (a - b) * nx * ny, (a - b) * nx * nz, 0,
+         (a - b) * ny * nx, 1 + b + (a - b) * ny * ny, (a - b) * ny * nz, 0,
+         (a - b) * nz * nx, (a - b) * nz * ny, 1 + b + (a - b) * nz * nz, 0, 0, 0, 0, 1);
+  _q.set(fr[o + 7], fr[o + 8], fr[o + 9], fr[o + 6]);
+  _r.makeRotationFromQuaternion(_q).scale(new THREE.Vector3(r / unitR, r / unitR, r / unitR));
+  _m.multiplyMatrices(_s, _r); _m.setPosition(fr[o], fr[o + 1], fr[o + 2]);
+  return _m;
+}
+
+// ================= robots: open frames so the balls inside stay visible =================
+const robots = [];
+function signTexture(label, red) {
+  const c = document.createElement("canvas"); c.width = 512; c.height = 160; const g = c.getContext("2d");
+  g.fillStyle = red ? "#c4241c" : "#1b4fbe"; g.fillRect(0, 0, 512, 160);
+  g.fillStyle = "#fff"; g.font = "700 104px Barlow Condensed, Arial Narrow, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(label.toUpperCase(), 256, 86);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function buildRobot(info) {
+  const red = info.alliance === "red", L = info.length, W = info.width, Hh = info.height;
+  const g = new THREE.Group(), add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
+  const ch = 0.048, wall = 0.004;   // goBILDA-style 48 mm U-channel side rails and cross members
+  for (const sy of [1, -1]) {
+    add(new THREE.BoxGeometry(L, wall, ch), M.alu, 0, sy * (W / 2 - 0.035), 0.055);
+    add(new THREE.BoxGeometry(L, ch, wall), M.alu, 0, sy * (W / 2 - 0.035 - ch / 2), 0.055 + ch / 2);
+    add(new THREE.BoxGeometry(L * 0.98, wall, Hh - 0.1), M.poly, 0, sy * (W / 2 - 0.012), Hh / 2 + 0.03);   // polycarbonate side guards
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(L * 0.5, 0.06), std({ map: signTexture(info.label, red), roughness: 0.6 }));
+    sign.position.set(-L * 0.12, sy * (W / 2 + 0.002), 0.1);
+    sign.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-sy, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, sy, 0)));
+    g.add(sign);
+  }
+  for (const x of [-L / 2 + 0.03, L * 0.1]) add(new THREE.BoxGeometry(ch, W - 0.09, ch), M.alu, x, 0, 0.055);
+  add(new THREE.BoxGeometry(0.103, 0.143, 0.032), std({ color: 0x1e1f22, roughness: 0.5 }), -L * 0.25, W * 0.18, 0.105);   // Control Hub
+  add(new THREE.BoxGeometry(0.12, 0.08, 0.06), std({ color: 0x2b2d30, roughness: 0.7 }), -L * 0.25, -W * 0.15, 0.11);    // battery
+  // mecanum wheels: hub + 10 angled rollers
+  const wheels = [];
+  for (const w of info.wheels) {
+    const wg = new THREE.Group(); wg.position.set(w.x, w.y, w.r);
+    const spin = new THREE.Group(); wg.add(spin);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(w.r * 0.7, w.r * 0.7, 0.04, 24), M.aluDark); hub.castShadow = true; spin.add(hub);
+    const rollerGeo = new THREE.CapsuleGeometry(w.r * 0.17, 0.04, 4, 10);
+    const handed = Math.sign(w.x * w.y) || 1;
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2, rr = new THREE.Mesh(rollerGeo, M.rubber);
+      rr.position.set(Math.cos(a) * w.r * 0.82, 0, Math.sin(a) * w.r * 0.82);
+      rr.rotation.set(0, -a, 0); rr.rotateZ(Math.PI / 2); rr.rotateY(handed * Math.PI / 4); rr.castShadow = true; spin.add(rr);
+    }
+    g.add(wg); wheels.push({ spin, x: w.x, y: w.y });
+  }
+  // intake: compliant-wheel roller across the mouth
+  let roller = null, fly = null, hood = null;
+  if (info.intake) {
+    const it = info.intake, rx = L / 2 + it.reach - it.rollerRadius;
+    roller = new THREE.Group(); roller.position.set(rx, 0, it.rollerZ); g.add(roller);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, it.width + 0.04, 8), M.steel); roller.add(shaft);
+    for (let k = 0; k < 5; k++) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(it.rollerRadius, it.rollerRadius, it.width / 6, 20), std({ color: k % 2 ? 0x2e7d32 : 0x1c1c1c, roughness: 0.75 }));
+      wheel.position.y = (k - 2) * it.width / 5; wheel.castShadow = true; roller.add(wheel);
+    }
+    for (const sy of [1, -1]) add(new THREE.BoxGeometry(it.reach + 0.04, 0.004, it.rollerZ + 0.05), M.poly, L / 2 + it.reach / 2 - 0.02, sy * (it.width / 2 + 0.01), (it.rollerZ + 0.05) / 2);
+  }
+  // ball path: a polycarbonate ramp under the balls with side guides, mouth -> shooter
+  const P = info.ballPath.map((p) => new THREE.Vector3(...p)), rB = season.scoringElements.NECTAR.diameter_m / 2;
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1], b = P[i], d = b.clone().sub(a), len = d.length(), mid = a.clone().add(b).multiplyScalar(0.5);
+    const tilt = Math.atan2(d.z, d.x);
+    const ramp = add(new THREE.BoxGeometry(len + 0.01, 0.13, 0.003), M.poly, mid.x, mid.y, mid.z - rB - 0.002); ramp.rotation.y = -tilt;
+    for (const sy of [1, -1]) { const gd = add(new THREE.BoxGeometry(len + 0.01, 0.003, 0.09), M.poly, mid.x, sy * 0.068, mid.z); gd.rotation.y = -tilt; }
+  }
+  if (info.flywheel) {
+    const f = info.flywheel;
+    fly = new THREE.Group(); fly.position.set(f.x - 0.02, 0, f.z - f.radius - 0.03); g.add(fly);
+    const fw = new THREE.Mesh(new THREE.CylinderGeometry(f.radius, f.radius, 0.1, 32), std({ color: 0x2a2a2a, roughness: 0.6 })); fw.castShadow = true; fly.add(fw);
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(f.radius * 1.8, 0.102, 0.008), M.alu); fly.add(spoke);
+    hood = new THREE.Group(); hood.position.set(f.x - 0.02, 0, f.z - f.radius - 0.03); g.add(hood);
+    const arc = new THREE.Mesh(new THREE.CylinderGeometry(f.radius + 0.075, f.radius + 0.075, 0.13, 24, 1, true, Math.PI * 0.05, Math.PI * 0.6), M.poly);
+    arc.material = M.poly; hood.add(arc);
+  }
+  return { g, wheels, roller, fly, hood };
+}
+function ensureRobots(n) {
+  while (robots.length < n) {
+    const info = state.sim.robotInfo(robots.length);
+    const r = buildRobot(info); gp.add(r.g); robots.push(r);
+  }
+}
+
+// ================= per-frame pose update from the simulation =================
+const RS = 17, ES = 14, CS = 5;
+function draw(fr) {
+  const nR = fr[4], nE = fr[5], nC = fr[6];
+  let o = 7;
+  ensureRobots(nR);
+  for (let i = 0; i < nR; i++, o += RS) {
+    const r = robots[i];
+    r.g.position.set(fr[o], fr[o + 1], 0); r.g.rotation.set(0, 0, fr[o + 2]);
+    if (fr[o + 5]) r.g.rotation.x = 1.2;
+    if (r.roller) r.roller.rotation.y = -fr[o + 9];
+    if (r.fly) r.fly.rotation.y = fr[o + 10];
+    if (r.hood) r.hood.rotation.y = -(fr[o + 11] - 0.9) * 0.5;
+    r.wheels.forEach((w) => { const k = (w.x > 0 ? 0 : 2) + (w.y > 0 ? 0 : 1); w.spin.rotation.y = fr[o + 12 + k]; });
+  }
+  const cnt = { 0: 0, 1: 0, 2: 0 }, cntFar = { 0: 0, 1: 0, 2: 0 };
+  _cam.set(camera.position.x, -camera.position.z, camera.position.y);   // camera in the field frame
+  const lodDist2 = state.gfx === "ultra" ? 16 : state.gfx === "balanced" ? 2.25 : 6.25;
+  for (let i = 0; i < nE; i++, o += ES) {
+    if (!fr[o + 5]) continue;
+    const k = fr[o + 3];
+    const dx = fr[o] - _cam.x, dy = fr[o + 1] - _cam.y, dzz = fr[o + 2] - _cam.z;
+    const far = dx * dx + dy * dy + dzz * dzz > lodDist2;
+    const im = far ? ballIMfar[k] : ballIM[k]; if (!im) continue;
+    im.setMatrixAt(far ? cntFar[k]++ : cnt[k]++, ballMatrix(fr, o, im.userData.unitR));
+  }
+  [0, 1, 2].forEach((k) => {
+    if (ballIM[k]) { ballIM[k].count = cnt[k]; ballIM[k].instanceMatrix.needsUpdate = true; }
+    if (ballIMfar[k]) { ballIMfar[k].count = cntFar[k]; ballIMfar[k].instanceMatrix.needsUpdate = true; }
+  });
+  o += nC * CS;
+  for (let h = 0; h < 2; h++) if (hives[h]) hives[h].rotation.x = fr[o + h] - hiveCadAngle[h];
+}
+
+// ================= driver camera: a person in the alliance area; never follows the robot =================
+const look = { yaw: 0, pitch: -0.32, baseYaw: 0, drag: null };
+function placeDriver() {
+  const A = F.allianceAreas[state.alliance], s = +$("stand").value;
+  const y = A.yMin + (A.yMax - A.yMin) * s;
+  const x = state.alliance === "red" ? -H - 0.55 : H + 0.55;
+  camera.position.copy(T(x, y, +$("eye").value));
+  look.baseYaw = state.alliance === "red" ? -Math.PI / 2 : Math.PI / 2; look.yaw = look.baseYaw; look.pitch = -0.32;
+  camera.fov = +$("fov").value; camera.updateProjectionMatrix();
+}
+function applyLook() {
+  if (state.overhead) { camera.position.set(0, 6.4, 0.01); camera.lookAt(0, 0, 0); return; }
+  look.yaw = Math.max(look.baseYaw - 1.75, Math.min(look.baseYaw + 1.75, look.yaw));
+  look.pitch = Math.max(-1.2, Math.min(0.55, look.pitch));
+  camera.rotation.set(look.pitch, look.yaw, 0, "YXZ");
+}
+canvas.addEventListener("pointerdown", (e) => { look.drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener("pointermove", (e) => { if (!look.drag) return; look.yaw -= (e.clientX - look.drag[0]) * 0.004; look.pitch -= (e.clientY - look.drag[1]) * 0.004; look.drag = [e.clientX, e.clientY]; });
+canvas.addEventListener("pointerup", () => { look.drag = null; });
+$("viewBtn").onclick = () => { state.overhead = !state.overhead; $("viewBtn").textContent = state.overhead ? "Driver view" : "Overhead view"; if (!state.overhead) placeDriver(); };
+["stand", "eye", "fov"].forEach((id) => $(id).addEventListener("input", () => { if (!state.running) placeDriver(); }));
+
+// ================= input: physical gamepad (FTC semantics) with keyboard fallback =================
+const keys = new Set();
+addEventListener("keydown", (e) => { if (state.running && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { keys.add(e.code); if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault(); } });
+addEventListener("keyup", (e) => keys.delete(e.code));
+const DZ = 0.06, dz = (v) => (Math.abs(v) < DZ ? 0 : (v - Math.sign(v) * DZ) / (1 - DZ));
+function readPad(dt) {
+  const p = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, buttons: 0 };
+  let gpad = null;
+  try { gpad = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find((g) => g && g.connected); } catch (_) {}
+  if (gpad) {
+    p.lx = dz(gpad.axes[0] || 0); p.ly = dz(gpad.axes[1] || 0); p.rx = dz(gpad.axes[2] || 0); p.ry = dz(gpad.axes[3] || 0);
+    const b = (i) => gpad.buttons[i] && gpad.buttons[i].pressed;
+    p.lt = gpad.buttons[6] ? gpad.buttons[6].value : 0; p.rt = gpad.buttons[7] ? gpad.buttons[7].value : 0;
+    [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [12, 6], [13, 7], [14, 8], [15, 9], [8, 10], [9, 11]].forEach(([i, bit]) => { if (b(i)) p.buttons |= 1 << bit; });
+  }
+  if (keys.has("KeyW")) p.ly = -1; if (keys.has("KeyS")) p.ly = 1;
+  if (keys.has("KeyA")) p.lx = -1; if (keys.has("KeyD")) p.lx = 1;
+  if (keys.has("KeyQ")) p.rx = -0.7; if (keys.has("KeyE")) p.rx = 0.7;
+  if (keys.has("ShiftLeft") || keys.has("ShiftRight")) p.rt = 1;
+  if (keys.has("KeyC")) p.lt = 1;
+  if (keys.has("KeyR")) p.buttons |= 1 << 5;
+  if (keys.has("Space")) p.buttons |= 1;
+  if (keys.has("KeyI")) p.buttons |= 1 << 6;
+  if (keys.has("KeyK")) p.buttons |= 1 << 7;
+  if (keys.has("ArrowLeft")) look.yaw += dt * 1.4; if (keys.has("ArrowRight")) look.yaw -= dt * 1.4;
+  if (keys.has("ArrowUp")) look.pitch += dt * 1.0; if (keys.has("ArrowDown")) look.pitch -= dt * 1.0;
+  return p;
+}
+
+// ================= match loop =================
+$("setupForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  state.sim = await GamePlanWasm.create(wasmBytes, (l) => console.log(l));   // fresh world per match
+  robots.forEach((r) => gp.remove(r.g)); robots.length = 0;
+  const robot = $("robotJson").textContent;
+  state.sim.init($("seasonJson").textContent, $("compsJson").textContent, robot, robot, {
+    seed: +$("seed").value || 1, alliance: state.alliance, mode: state.mode, difficulty: +$("diff").value,
+    opponentPersonality: $("opp").value, partnerPersonality: "coordinated", partnerInstruction: $("instr").value, uncertainty: "realistic" });
+  state.elec = []; state.running = true; state.overhead = false;
+  placeDriver();
+  ["hud", "conn", "keys", "viewBtn"].forEach((id) => { $(id).hidden = false; });
+  $("setup").hidden = true; $("toast").hidden = true; $("report").hidden = true;
+  canvas.focus();
+});
+let last = performance.now(), elecT = -1, lastSize = "";
+function frame(now) {
+  if (window.__gpPause) { last = now; requestAnimationFrame(frame); return; }   // test hook: frozen for screenshots
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (state.running && state.sim) {
+    state.sim.setPad(readPad(dt));
+    const done = state.sim.step(dt);
+    draw(state.sim.frame());
+    const h = state.sim.hud();
+    $("timer").textContent = h.timer; $("phase").textContent = h.phase.replace("_", " ") + (state.mode === "practice" ? " · practice" : "");
+    $("sRed").textContent = h.red; $("sBlue").textContent = h.blue;
+    $("connText").textContent = h.connection; $("conn").classList.toggle("bad", h.connection !== "Connected");
+    const el = state.sim.elec();
+    if (el[0] - elecT >= 0.1) { elecT = el[0]; state.elec.push(Array.from(el)); }   // stored now, shown only after the match
+    if (done) finish();
+  }
+  applyLook();
+  resize();
+  composer.render();
+  requestAnimationFrame(frame);
+}
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight, key2 = w + "x" + h + "@" + renderer.getPixelRatio();
+  if (key2 === lastSize) return;
+  lastSize = key2;
+  renderer.setSize(w, h, false); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h);
+  camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+}
+function finish() { state.running = false; $("keys").hidden = true; $("toast").hidden = false; }
+$("dismiss").onclick = () => { $("toast").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtn"].forEach((id) => { $(id).hidden = true; }); };
+$("openReport").onclick = () => { $("toast").hidden = true; renderReport(); $("report").hidden = false; };
+
+// ================= post-match report =================
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function chart(cv, series, unit) {
+  const dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth * dpr, Hh = cv.clientHeight * dpr;
+  cv.width = W; cv.height = Hh; const c = cv.getContext("2d");
+  const pad = { l: 44 * dpr, r: 10 * dpr, t: 12 * dpr, b: 22 * dpr };
+  const xs = state.elec.map((r) => r[0]);
+  let lo = Infinity, hi = -Infinity; series.forEach((s) => state.elec.forEach((r) => { lo = Math.min(lo, r[s.i]); hi = Math.max(hi, r[s.i]); }));
+  if (!isFinite(lo)) return; if (hi - lo < 1e-6) { hi += 1; lo -= 1; } const m = (hi - lo) * 0.08; lo -= m; hi += m;
+  const X = (x) => pad.l + (x - xs[0]) / Math.max(1e-6, xs[xs.length - 1] - xs[0]) * (W - pad.l - pad.r);
+  const Y = (y) => pad.t + (1 - (y - lo) / (hi - lo)) * (Hh - pad.t - pad.b);
+  c.font = `${11 * dpr}px IBM Plex Mono, monospace`; c.fillStyle = "#8e9aa5"; c.strokeStyle = "#2b343d"; c.lineWidth = dpr;
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, y = Y(v); c.beginPath(); c.moveTo(pad.l, y); c.lineTo(W - pad.r, y); c.stroke(); c.fillText(v.toFixed(1), 4 * dpr, y + 4 * dpr); }
+  c.fillText(unit, 4 * dpr, 10 * dpr);
+  [38, 98, 138].forEach((t) => { const x = X(t); if (x > pad.l && x < W - pad.r) { c.setLineDash([3 * dpr, 4 * dpr]); c.beginPath(); c.moveTo(x, pad.t); c.lineTo(x, Hh - pad.b); c.stroke(); c.setLineDash([]); } });
+  series.forEach((s) => { c.strokeStyle = s.color; c.lineWidth = 1.6 * dpr; c.beginPath(); state.elec.forEach((r, i) => { const x = X(r[0]), y = Y(r[s.i]); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke(); });
+}
+function renderReport() {
+  const r = state.sim.result(), u = r.userRobotElectrical;
+  const rows = (a) => Object.entries(r[a].breakdown).map(([k, v]) => `<tr><td>${esc(k.replace(/_/g, " "))}</td><td>${v}</td></tr>`).join("") + `<tr><td>Foul credit</td><td>${r[a].foulCredit}</td></tr>`;
+  const viol = r.violations.length ? r.violations.map((v) => `<tr><td>${v.matchTime.toFixed(1)} s</td><td>${esc(v.rule)} <span class="tag">${v.judgment ? "judgment" : "objective"}</span></td><td>${esc(v.offender)}</td><td>${esc(v.penalty)}</td><td>${esc(v.rationale)}</td></tr>`).join("") : `<tr><td colspan="5">No violations assessed.</td></tr>`;
+  const motors = u.motors.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.energy_J.toFixed(0)}</td><td>${m.peak_A.toFixed(1)}</td><td>${m.winding_C.toFixed(0)}</td></tr>`).join("");
+  const pd = r.partnerDirectives || { matched: [], notUnderstood: [] };
+  $("reportCard").innerHTML = `
+    <div class="row"><h1>Match report</h1><span class="tag">${esc(season.manual.teamUpdate)} · ${esc(season.rulesEngineVersion)} · seed ${+$("seed").value}${state.mode === "practice" ? " · PRACTICE" : ""}</span></div>
+    <div class="bigscore"><span class="r">${r.red.total}</span><span class="vs">vs</span><span class="b">${r.blue.total}</span><span class="tag">RP red ${r.red.rp} · blue ${r.blue.rp}</span></div>
+    <div class="grid"><div class="tbl-wrap"><table><tr><th>Red</th><th>pts</th></tr>${rows("red")}</table></div><div class="tbl-wrap"><table><tr><th>Blue</th><th>pts</th></tr>${rows("blue")}</table></div></div>
+    <h2>Violations</h2><div class="tbl-wrap"><table><tr><th>Time</th><th>Rule</th><th>Alliance</th><th>Penalty</th><th>Basis</th></tr>${viol}</table></div>
+    <h2>Your robot's electrical system</h2>
+    <p class="lede">Collected during the match and shown only now. Min hub bus ${u.minHubBusV.toFixed(2)} V, peak battery current ${u.peakBatteryA.toFixed(1)} A, ${(u.energy_J / 1000).toFixed(2)} kJ used, final charge ${(u.finalSoc * 100).toFixed(1)} %, ${r.distance_m.toFixed(1)} m driven. Values are calculated by the coupled model; component data carries provenance in the GamePlan repository.</p>
+    <canvas class="chart" id="cV" aria-label="Battery terminal and hub bus voltage over the match"></canvas>
+    <canvas class="chart" id="cI" aria-label="Battery current over the match"></canvas>
+    <div class="tbl-wrap"><table><tr><th>Motor</th><th>Energy J</th><th>Peak A</th><th>Winding °C</th></tr>${motors}</table></div>
+    <h2>Alliance partner</h2>
+    <p class="lede">${pd.matched.length ? "Followed: " + pd.matched.map(esc).join("; ") : "Played its default strategy."}${pd.notUnderstood && pd.notUnderstood.length ? " Not understood: " + pd.notUnderstood.map(esc).join("; ") : ""}</p>
+    <div class="row"><span class="parsed">Dashed lines: TELEOP start, FLOWER unlock (1:00), final 20 s.</span><button type="button" id="again">Set up another match</button></div>`;
+  chart($("cV"), [{ i: 1, color: "#f2c230" }, { i: 3, color: "#4fbf7a" }], "V  battery · hub");
+  chart($("cI"), [{ i: 2, color: "#e0453a" }], "A  battery");
+  $("again").onclick = () => { $("report").hidden = true; $("setup").hidden = false; ["hud", "conn", "viewBtn"].forEach((id) => { $(id).hidden = true; }); };
+}
+
+applyQuality(state.gfx);
+placeDriver();
+loadField();
+requestAnimationFrame(frame);
+// test hook for automated screenshots (no effect on play)
+window.__gp = { THREE, scene, camera, state, draw, placeDriver, look, robots,
+  renderFrame: (noLook) => { if (!noLook) applyLook(); resize(); composer.render(); },
+  advance: (s) => { for (let t = 0; t < s; t += 0.05) { state.sim.setPad(readPad(0.05)); state.sim.step(0.05); } draw(state.sim.frame()); } };
+</script>

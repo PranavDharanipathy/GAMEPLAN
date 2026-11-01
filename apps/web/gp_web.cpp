@@ -56,7 +56,8 @@ public:
         }
         for (auto& mech : r.mechs) {
             if (mech.type == MechType::Intake && mech.joint >= 0)
-                r.ports[r.joints[mech.joint].motor].power = gPad.rt > 0.1 ? 1.0 : (gPad.lt > 0.1 ? -1.0 : 0.0);
+                // the intake belts also carry balls to the shooter, so feeding (A) runs them too
+                r.ports[r.joints[mech.joint].motor].power = gPad.lt > 0.1 ? -1.0 : ((gPad.rt > 0.1 || (gPad.buttons & 1)) ? 1.0 : 0.0);
             if (mech.type == MechType::Flywheel && mech.joint >= 0) {
                 int mi = r.joints[mech.joint].motor;
                 r.ports[mi].mode = RunMode::RunUsingEncoder;
@@ -154,9 +155,10 @@ GP_EXPORT(gp_step) int gp_step(double dt) {
 
 // Frame buffer layout (floats):
 // [0] t [1] phase [2] scoreRed [3] scoreBlue [4] nRobots [5] nElements [6] nCells
-// robots: x y heading alliance held tipped length width height  (9 each)
-// elements: x y z kind(0 pollen,1 red nectar,2 blue nectar) radius visible  (6 each)
-// cells: x y z up(1/0) alliance  (5 each)
+// robots: x y heading alliance held tipped length width height intakeAngle flyAngle hoodAngle
+//         wheelAngle[4] (lf rf lb rb) pitch  (17 each)
+// elements: x y z kind(0 pollen,1 red nectar,2 blue nectar) radius visible qw qx qy qz squish nx ny nz (14 each)
+// cells: x y z up(1/0) alliance  (5 each), then hiveAngle[2] (rad about +x through the pivot)
 GP_EXPORT(gp_frame) float* gp_frame() {
     gFrame.clear();
     if (!gWorld) return gFrame.data();
@@ -173,11 +175,31 @@ GP_EXPORT(gp_frame) float* gp_frame() {
         for (double v : {r.pos.x, r.pos.y, r.heading, double(int(r.alliance)), double(r.held.size()), r.tipped ? 1.0 : 0.0,
                          r.cfg.length, r.cfg.width, r.cfg.height})
             gFrame.push_back(float(v));
+        double ang[3] = {0, 0, 0};
+        for (auto& m : r.mechs) {
+            if (m.type == MechType::Intake && m.joint >= 0) ang[0] = r.joints[m.joint].theta;
+            if (m.type == MechType::Flywheel && m.joint >= 0) ang[1] = r.joints[m.joint].theta;
+            if (m.type == MechType::Hood && !m.servos.empty()) {
+                const ServoUnit& sv = r.elec.servos[m.servos[0]];
+                double span = sv.spec.rangeRad > 0 ? sv.spec.rangeRad : 1.0;
+                ang[2] = m.angleAt0 + clampd(sv.angle / span + 0.5, 0.0, 1.0) * (m.angleAt1 - m.angleAt0);
+            }
+        }
+        for (double v : ang) gFrame.push_back(float(v));
+        double wa[4] = {0, 0, 0, 0};
+        for (auto& wh : r.wheels) {
+            int k = (wh.pos.x > 0 ? 0 : 2) + (wh.pos.y > 0 ? 0 : 1);
+            if (wh.joint >= 0) wa[k] = r.joints[wh.joint].theta;
+        }
+        for (double v : wa) gFrame.push_back(float(v));
+        gFrame.push_back(float(r.pitch));
     }
     for (auto& e : w.elements()) {
         bool vis = e.state != ElemState::HumanArea && e.state != ElemState::OutOfField;
         double kind = e.type == ElemType::Pollen ? 0 : (e.color == Alliance::Red ? 1 : 2);
-        for (double v : {e.p.x, e.p.y, e.p.z, kind, e.radius, vis ? 1.0 : 0.0}) gFrame.push_back(float(v));
+        for (double v : {e.p.x, e.p.y, e.p.z, kind, e.radius, vis ? 1.0 : 0.0, e.q[0], e.q[1], e.q[2], e.q[3], e.squish,
+                         e.squishN.x, e.squishN.y, e.squishN.z})
+            gFrame.push_back(float(v));
     }
     for (int h = 0; h < 2; ++h)
         for (int c = 0; c < 2; ++c) {
@@ -188,9 +210,58 @@ GP_EXPORT(gp_frame) float* gp_frame() {
             bool up = w.hive(Alliance(h)).upCell == c && !w.hive(Alliance(h)).tipping;
             for (double v : {p.x, p.y, p.z, up ? 1.0 : 0.0, double(h)}) gFrame.push_back(float(v));
         }
+    // HIVE body rotation about its pivot (+x), 0 = audience CELL up (same convention as World::cellSlot)
+    for (int h = 0; h < 2; ++h) {
+        const HiveState& hs = w.hive(Alliance(h));
+        int aud = gSeason->hives[h].cells[0].side == "audience" ? 0 : 1;
+        double down = hs.upCell == aud ? 0.0 : 1.0;
+        if (hs.tipping) {
+            double f = clampd((w.time() - hs.tipStart) / gSeason->tipSettleS, 0.0, 1.0);
+            down = hs.upCell == aud ? f : 1.0 - f;
+        }
+        gFrame.push_back(float(down * hs.stateAngle));
+    }
     return gFrame.data();
 }
 GP_EXPORT(gp_frame_len) int gp_frame_len() { return int(gFrame.size()); }
+
+// Static geometry of robot i for rendering: chassis, wheels, intake roller and mouth, internal ball
+// path, shooter. Body frame metres (x forward, y left, z up).
+GP_EXPORT(gp_robot_info) const char* gp_robot_info(int i) {
+    Json j = Json::object();
+    if (!gWorld || i < 0 || i >= int(gWorld->robots().size())) { gText = "{}"; return gText.c_str(); }
+    const World& w = *gWorld;
+    const Robot& r = *w.robots()[i].robot;
+    j.set("label", r.label); j.set("name", r.cfg.name); j.set("alliance", toString(r.alliance));
+    j.set("length", r.cfg.length); j.set("width", r.cfg.width); j.set("height", r.cfg.height);
+    Json wh = Json::array();
+    for (auto& x : r.wheels) {
+        Json o = Json::object();
+        o.set("x", x.pos.x); o.set("y", x.pos.y); o.set("r", x.radius);
+        o.set("roller", std::atan2(x.n.y, x.n.x));   // traction direction -> roller angle of a mecanum wheel
+        wh.push(o);
+    }
+    j.set("wheels", wh);
+    Json path = Json::array();
+    for (auto& p : w.ballPath(i)) { Json o = Json::array(); o.push(p.x); o.push(p.y); o.push(p.z); path.push(o); }
+    j.set("ballPath", path);
+    for (auto& m : r.mechs) {
+        Json o = Json::object();
+        if (m.type == MechType::Intake) {
+            o.set("rollerRadius", m.rollerRadius); o.set("width", m.width); o.set("reach", m.reach);
+            o.set("rollerZ", m.rollerZ > 0 ? m.rollerZ : w.season().pollenD + m.rollerRadius - 0.014);
+            o.set("mouthHeight", m.mouthHeight);
+            j.set("intake", o);
+        }
+        if (m.type == MechType::Flywheel) {
+            o.set("radius", m.flyRadius); o.set("x", m.launchFwd); o.set("z", m.launchHeight);
+            j.set("flywheel", o);
+        }
+        if (m.type == MechType::Hood) { o.set("a0", m.angleAt0); o.set("a1", m.angleAt1); j.set("hood", o); }
+    }
+    gText = j.dump();
+    return gText.c_str();
+}
 
 // Driver-facing HUD data only (no electrical telemetry during the match).
 GP_EXPORT(gp_hud) const char* gp_hud() {
