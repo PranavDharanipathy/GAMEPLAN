@@ -163,3 +163,27 @@ TEST(shot_depends_on_ball_size_and_spin) {
         CHECK_GT(w.elements()[a].w.norm(), 10.0);           // leaves with backspin
     }
 }
+
+TEST(full_speed_wall_crash_rocks_robot_flexes_wall_and_rings_down) {
+    MatchRunner m(quietSetup());
+    std::string err;
+    CHECK(m.begin(err));
+    World& w = m.world();
+    Robot& r = *w.robots()[0].robot;   // red1, by the red (-x) wall
+    r.pos = {-w.season().half + r.cfg.length / 2 + 0.01, 0.0}; r.heading = kPi; r.vel = {-1.6, 0.0}; r.omega = 0;   // 1 cm out, full speed
+    double maxPitch = 0, maxDisp = 0, minX = 1, maxBackSpeed = 0;
+    for (int i = 0; i < 1500; ++i) {
+        w.step();
+        maxPitch = std::max(maxPitch, std::fabs(r.pitch));
+        maxDisp = std::max(maxDisp, std::fabs(w.wallDisplacement(0)));
+        minX = std::min(minX, r.pos.x);
+        maxBackSpeed = std::max(maxBackSpeed, r.vel.x);
+    }
+    double halfLen = r.cfg.length / 2;
+    CHECK_GT(maxPitch, 0.01);                                  // the hard stop rocks the robot
+    CHECK_GT(maxBackSpeed, 0.05);                              // and it bounces back off the barrier
+    CHECK_LT(-(minX - halfLen) - w.season().half, 0.03);       // the barrier gives a little, < 3 cm
+    CHECK_GT(maxDisp, 0.001);                                  // the panel visibly flexes...
+    CHECK_LT(std::fabs(w.wallDisplacement(0)), 0.0005);        // ...and rings down within 1.5 s
+    CHECK(!r.tipped);
+}

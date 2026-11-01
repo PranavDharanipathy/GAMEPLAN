@@ -102,6 +102,9 @@ canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-ra
 .updbar .x:hover { color: var(--fg); }
 body.has-updbar .hud, body.has-updbar .conn { top: calc(56px + env(safe-area-inset-top, 0px)); }
 body.has-updbar .sheet { padding-top: 64px; }
+.standpick { display: grid; gap: 6px; }
+.standpick .lbl { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+#standMap { width: 100%; height: 210px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
 .about { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
 .about .ver { font-family: var(--font-mono); color: var(--fg); }
 .about .state.new { color: var(--pollen); }
@@ -128,7 +131,7 @@ body.has-updbar .sheet { padding-top: 64px; }
     <div class="clock"><div class="timer" id="timer">2:30</div><div class="phase" id="phase">Pre-match</div></div>
     <div class="score blue" id="sBlue">0</div>
   </div>
-  <div class="keys" id="keys" hidden>WASD drive · Q/E turn · Shift intake · C reverse · hold R shooter (robot light green = ready) · Space fire · I/K trim hood · drag or arrows to look · Esc leave</div>
+  <div class="keys" id="keys" hidden>WASD drive · ←/→ turn · Shift intake · C reverse · hold Space to fire (the robot aims itself; light green = ready) · ↑/↓ trim hood · drag to look · Esc leave</div>
   <div class="viewbtns" id="viewBtns" hidden><button class="ghost" id="leaveBtn">Leave match</button><button class="ghost" id="viewBtn">Overhead view</button></div>
   <div class="hint" id="hint" hidden></div>
   <div class="note2" id="note2" hidden></div>
@@ -136,7 +139,7 @@ body.has-updbar .sheet { padding-top: 64px; }
     <div class="stick" id="stickL" aria-label="Drive stick"><i></i></div>
     <div class="tbtns">
       <button type="button" data-b="intake">Intake</button><button type="button" data-b="reverse">Out</button>
-      <button type="button" data-b="spin">Shooter</button><button type="button" data-b="fire" class="fire">Fire</button>
+      <button type="button" data-b="fire" class="fire">Fire</button>
     </div>
     <div class="stick" id="stickR" aria-label="Turn stick"><i></i></div>
   </div>
@@ -154,13 +157,17 @@ body.has-updbar .sheet { padding-top: 64px; }
         <label>Mode
           <div class="seg" role="group" aria-label="Mode"><button type="button" class="n" id="mComp" aria-pressed="true">Competition</button><button type="button" class="n" id="mPrac" aria-pressed="false">Practice</button></div>
         </label>
-        <label for="stand">Where you stand <input id="stand" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+
         <label for="eye">Eye height (m) <input id="eye" type="number" min="1.0" max="2.1" step="0.05" value="1.65"></label>
         <label for="fov">Field of view (°) <input id="fov" type="number" min="50" max="110" step="1" value="75"></label>
         <label for="diff">AI skill <select id="diff"><option value="0.3">Rookie</option><option value="0.6" selected>Regional</option><option value="0.9">Worlds</option></select></label>
         <label for="opp">Opponent style <select id="opp"><option value="aggressive">Aggressive scorers</option><option value="defensive">Defensive</option><option value="cautious">Cautious</option><option value="inconsistent">Mechanically inconsistent</option><option value="coordinated">Highly coordinated</option><option value="rookie">Inexperienced</option></select></label>
         <label for="seed">Match seed <input id="seed" type="number" min="1" value="7"></label>
         <label for="gfx">Graphics <select id="gfx"><option value="ultra">Ultra (AO, 4K shadows)</option><option value="high" selected>High</option><option value="balanced">Balanced</option></select></label>
+      </div>
+      <div class="standpick">
+        <span class="lbl" id="standLbl">Where you stand: click or drag the dot in your alliance area</span>
+        <canvas id="standMap" tabindex="0" role="img" aria-labelledby="standLbl"></canvas>
       </div>
       <label for="instr">Instruction for your alliance partner
         <textarea id="instr" placeholder="e.g. Prioritize collecting POLLEN. Stay out of my way while I operate the intake.">Stay out of my way while I operate the intake</textarea>

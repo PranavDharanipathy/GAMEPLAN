@@ -3,6 +3,18 @@
   "note": "Newest first. tools/release.py publishes the first entry as the live 'latest' record that running apps watch.",
   "releases": [
     {
+      "version": "0.7.0",
+      "date": "2026-11-01",
+      "required": false,
+      "notes": [
+        "Fixed: the HIVE, FLOWERS, field barrier and the holes in the balls were missing in claude.ai (blocked asset loading)",
+        "Your robot can score: the flywheel always spins; hold Space / A to fire - it turns to face your HIVE and shoots when ready",
+        "WASD drives, arrow keys turn; your view follows your robot and looks down when it comes close",
+        "Pick where you stand on a top view of the field before the match",
+        "Crashing into the barrier rocks the robot, flexes the wall and thuds; better metal and lighting"
+      ]
+    },
+    {
       "version": "0.6.1",
       "date": "2026-11-01",
       "required": false,

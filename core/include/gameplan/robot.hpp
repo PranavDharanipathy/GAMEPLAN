@@ -152,6 +152,7 @@ public:
     Vec2 pos, vel;
     double heading = 0, omega = 0;
     Vec2 accel;                 // body-frame acceleration (for load transfer)
+    Vec2 contactImpulse;        // world-frame impulse from walls/robots/structures since the last step
     double pitch = 0, roll = 0, pitchRate = 0, rollRate = 0;
     bool tipped = false;
     double yawInertia = 0.5;

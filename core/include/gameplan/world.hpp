@@ -209,6 +209,12 @@ private:
     std::unique_ptr<MatchRules> rules_;
     std::vector<FaultEvent> faults_;
     std::vector<std::vector<double>> contactTime_;
+    // perimeter walls (-x, +x, -y, +y): local panel flex driven by robot contact forces (m, m/s)
+    double wallDisp_[4] = {0, 0, 0, 0}, wallVel_[4] = {0, 0, 0, 0}, wallForce_[4] = {0, 0, 0, 0};
+public:
+    double wallDisplacement(int w) const { return wallDisp_[w]; }
+    double wallVelocity(int w) const { return wallVel_[w]; }
+private:
     std::vector<double> intakeLoadUntil_, intakeLoad_;
     std::vector<Vec2> prevRobotVel_;
     std::vector<int> prevLegContact_;

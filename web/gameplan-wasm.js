@@ -49,6 +49,7 @@
       elec() { const p = x.gp_elec_sample(); return new Float32Array(memory.buffer, p, x.gp_frame_len()).slice(); },
       hud() { return JSON.parse(cstr(x.gp_hud())); },
       robotInfo(i) { return JSON.parse(cstr(x.gp_robot_info(i))); },
+      shooterDebug() { return x.gp_shooter_debug ? JSON.parse(cstr(x.gp_shooter_debug())) : null; },
       result() { return JSON.parse(cstr(x.gp_result())); },
       parseInstruction(t) { const p = str(t); const r = JSON.parse(cstr(x.gp_parse_instruction(p))); x.gp_free(p); return r; },
     };

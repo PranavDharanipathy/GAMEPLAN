@@ -119,7 +119,7 @@ From AGENTS.md — verify them explicitly, they break quietly:
 | G2 Unit/system | `./build/gp-tests` | all pass |
 | G3 Integration | `python3 tests/integration_test.py` | 0 failures (Java runtime in the loop, sandbox, AprilTags, imitation) |
 | G4 Determinism | `./build/gp-sim run <match> --record out/x && ./build/gp-sim verify out/x` | EXACT |
-| G5 Browser | `node web/node_test.js`; `node web/playtest.js 3`; `node web/playtest_browser.js <dir>` (serve `build-web/site` on :8765) | full match, a human-style driver scores, keyboard + touch drive, no page errors |
+| G5 Browser | `node web/node_test.js`; `node web/playtest.js 3`; `node web/playtest_browser.js <dir>` (serve `build-web/site` on :8765); `node web/csp_test.js <dir>` (serve with `web/serve_csp.py` on :8766: the claude.ai viewer's security policy) | full match, a human-style driver scores, keyboard + touch drive, all field CAD loads under the viewer's policy, no page errors or policy violations |
 | G6 Feature acceptance | every merged feature's acceptance checks (§2), run on the integration branch together | all pass |
 | G7 Interaction | at least one scenario exercising each pair of features that touch the same area | behaves as both briefs describe |
 | G8 Performance | `gp-sim run examples/matches/ai-vs-ai.match.json` real-time factor; browser frame time | no regression > 15 % without a stated reason |

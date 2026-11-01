@@ -39,11 +39,8 @@ import base64, struct
 for f in sorted(os.listdir(os.path.join(root, "assets", "field"))):
     if not f.endswith(".glb"):
         continue
-    # served as embedded glTF JSON (.gltf.json): artifact hosting only serves standard web types
-    b = open(os.path.join(root, "assets", "field", f), "rb").read()
-    jl = struct.unpack("<I", b[12:16])[0]
-    doc = json.loads(b[20:20 + jl])
-    binary = b[20 + jl + 8:]
-    doc["buffers"] = [{"byteLength": len(binary), "uri": "data:application/octet-stream;base64," + base64.b64encode(binary).decode()}]
-    open(os.path.join(fa, f[:-4] + ".gltf.json"), "w").write(json.dumps(doc, separators=(",", ":")))
+    # the GLB travels as base64 inside a .json file: artifact hosting serves only standard web types,
+    # and the viewer's security policy forbids fetching data: URIs (so no embedded-buffer glTF)
+    data = open(os.path.join(root, "assets", "field", f), "rb").read()
+    open(os.path.join(fa, f[:-4] + ".glb.json"), "w").write(json.dumps({"glb": base64.b64encode(data).decode()}))
 print("site:", out, len(page), "bytes html")

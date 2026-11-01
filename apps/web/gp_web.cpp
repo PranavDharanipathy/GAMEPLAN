@@ -24,12 +24,15 @@ namespace {
 struct Pad { float lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0; int buttons = 0; };
 Pad gPad;
 
-// Built-in driver mapping for the web build (not team code):
-// left stick translate, right stick X rotate, RT intake, LT reverse intake, A open gate (feed).
-// RB = shooter assist, as competitive teams program it: while held, the flywheel speed and hood
-// angle follow the robot's distance to its own HIVE's up-facing CELL; the driver still has to turn
-// to face it and fire. D-pad up/down trims the hood. A status LED on the robot (and gamepad rumble)
-// says when the wheel is at speed and the robot is pointed at the CELL.
+// Built-in driver mapping for the web build (not team code), programmed the way competitive teams
+// program a shooter robot:
+//   left stick: drive (robot-centric)   right stick X / arrow keys: turn
+//   RT: intake   LT: reverse intake   A (hold): FIRE   D-pad up/down: trim the hood
+// The flywheel spins all match (velocity control); speed and hood angle follow the robot's distance
+// to its own HIVE's up-facing CELL. Holding FIRE turns the robot to face that CELL (the driver keeps
+// full translation) and opens the gate only when the wheel is at speed, the hood has settled and the
+// robot is aimed - so every ball that leaves is a real attempt. A status LED (and gamepad rumble)
+// shows "ready".
 class BuiltInTeleop : public AIController {
 public:
     BuiltInTeleop(uint64_t seed, bool competition)
@@ -38,12 +41,28 @@ public:
         Robot& r = *w.robots()[self].robot;
         Phase ph = w.rules().phase();
         bool allowed = competition_ ? ph == Phase::Teleop : (ph == Phase::Auto || ph == Phase::Teleop);
+        status_ = 0;
         if (!allowed) {
             for (auto& p : r.ports) p.power = 0;
             if (ph != Phase::PreMatch) for (auto& s : r.elec.servos) s.pwmEnabled = false;   // SDK stop semantics
             return;
         }
+        const bool fire = gPad.buttons & 1;
+        // --- shooter solution for the CELL that is facing up on our own HIVE right now
+        const SeasonDef& s = w.season();
+        const HiveState& hs = w.hive(r.alliance);
+        double side = s.hives[int(r.alliance)].cells[hs.upCell].side == "audience" ? -1 : 1;
+        Vec3 target{s.hives[int(r.alliance)].pivot.x, side * s.cellOffsetY, s.cellCaptureHeight};
+        double hood, fly, yaw;
+        solved_ = solveShot(w, self, target, hood, fly, yaw);
+        if (solved_) { assistHood_ = hood; assistFly_ = fly; aimYaw_ = yaw; }
+        else aimYaw_ = std::atan2(target.y - r.pos.y, target.x - r.pos.x);
+        // --- drive: driver translation always; rotation from the stick, or heading lock while firing
         double y = -gPad.ly, x = gPad.lx, rot = gPad.rx;
+        if (fire) {
+            double e = wrapAngle(aimYaw_ - r.heading);
+            rot = clampd(-2.2 * e + 0.3 * r.omega, -0.7, 0.7);     // rot > 0 turns clockwise (omega < 0)
+        }
         double d = std::max(1.0, std::fabs(y) + std::fabs(x) + std::fabs(rot));
         for (auto& wh : r.wheels) {
             int m = r.motorIndex(wh.name);
@@ -57,49 +76,43 @@ public:
             r.ports[m].mode = RunMode::RunWithoutEncoder;
             r.ports[m].power = v / d * r.motorSign[m];
         }
+        bool ready = false;
         for (auto& mech : r.mechs) {
-            if (mech.type == MechType::Intake && mech.joint >= 0)
-                // the intake belts also carry balls to the shooter, so feeding (A) runs them too
-                r.ports[r.joints[mech.joint].motor].power = gPad.lt > 0.1 ? -1.0 : ((gPad.rt > 0.1 || (gPad.buttons & 1)) ? 1.0 : 0.0);
             if (mech.type == MechType::Flywheel && mech.joint >= 0) {
                 int mi = r.joints[mech.joint].motor;
                 const GearedJoint& j = r.joints[mech.joint];
                 double maxSurface = r.elec.motors[mi].spec.wFree() / j.ratio * mech.flyRadius;
-                bool assist = gPad.buttons & (1 << 5);
-                status_ = 0;
-                if (assist) {
-                    // the CELL that is facing up on our own HIVE right now (it flips when the HIVE tips)
-                    const SeasonDef& s = w.season();
-                    const HiveState& hs = w.hive(r.alliance);
-                    double side = s.hives[int(r.alliance)].cells[hs.upCell].side == "audience" ? -1 : 1;
-                    Vec3 target{s.hives[int(r.alliance)].pivot.x, side * s.cellOffsetY, s.cellCaptureHeight};
-                    double hood, fly, yaw;
-                    if (solveShot(w, self, target, hood, fly, yaw)) {
-                        assistHood_ = hood; assistFly_ = fly; aimYaw_ = yaw; solved_ = true;
-                    } else {
-                        assistFly_ = maxSurface * 0.75; solved_ = false;   // out of range: spin up anyway
-                        aimYaw_ = std::atan2(target.y - r.pos.y, target.x - r.pos.x);
-                    }
-                    double cur = j.w * mech.flyRadius;
-                    bool atSpeed = std::fabs(cur - assistFly_) < 0.015 * assistFly_;
-                    bool aimed = std::fabs(wrapAngle(aimYaw_ - r.heading)) < 0.04;
-                    status_ = solved_ && atSpeed && aimed && hoodSettled(r) ? 2 : 1;
-                }
-                r.ports[mi].mode = RunMode::RunUsingEncoder;
-                r.ports[mi].power = assist ? clampd(assistFly_ / std::max(maxSurface, 1e-6), 0.0, 1.0) : 0.0;
+                double want = solved_ ? assistFly_ : maxSurface * 0.7;    // out of range: keep it spinning
+                // DcMotorEx.setVelocity(): the hub firmware's velocity loop tracks ticks/s directly
+                auto& pc = r.ports[mi];
+                pc.mode = RunMode::RunUsingEncoder;
+                pc.velocityCommand = true;
+                pc.targetVelocity = want / mech.flyRadius / (2 * kPi) * pc.ticksPerRev * r.motorSign[mi];
+                pc.power = 1.0;
+                double cur = j.w * mech.flyRadius;
+                bool atSpeed = std::fabs(cur - want) < 0.015 * want;
+                bool aimed = std::fabs(wrapAngle(aimYaw_ - r.heading)) < 0.04 && std::fabs(r.omega) < 0.6;
+                ready = solved_ && atSpeed && aimed && hoodSettled(r);
+                dbg_[0] = solved_; dbg_[1] = cur / std::max(want, 1e-6); dbg_[2] = wrapAngle(aimYaw_ - r.heading); dbg_[3] = r.omega; dbg_[4] = hoodSettled(r);
+                status_ = ready ? 2 : 1;
             }
+        }
+        for (auto& mech : r.mechs) {
+            if (mech.type == MechType::Intake && mech.joint >= 0)
+                // belts carry balls to the shooter: they run to intake and while a ready shot feeds
+                r.ports[r.joints[mech.joint].motor].power = gPad.lt > 0.1 ? -1.0 : ((gPad.rt > 0.1 || (fire && ready)) ? 1.0 : 0.0);
             if (mech.type == MechType::Hood && !mech.servos.empty()) {
                 if (gPad.buttons & (1 << 6)) trim_ = std::min(0.3, trim_ + dt * 0.25);
                 if (gPad.buttons & (1 << 7)) trim_ = std::max(-0.3, trim_ - dt * 0.25);
-                hood_ = clampd(((gPad.buttons & (1 << 5)) ? assistHood_ : 0.5) + trim_, 0.0, 1.0);
-                auto& s = r.elec.servos[mech.servos[0]];
-                s.pwmEnabled = true;
-                s.pulseUs = 600 + 1800 * hood_;
+                hood_ = clampd((solved_ ? assistHood_ : 0.5) + trim_, 0.0, 1.0);
+                auto& sv = r.elec.servos[mech.servos[0]];
+                sv.pwmEnabled = true;
+                sv.pulseUs = 600 + 1800 * hood_;
             }
             if (mech.type == MechType::Gate && !mech.servos.empty()) {
-                auto& s = r.elec.servos[mech.servos[0]];
-                s.pwmEnabled = true;
-                s.pulseUs = (gPad.buttons & 1) ? 2400 : 600;
+                auto& sv = r.elec.servos[mech.servos[0]];
+                sv.pwmEnabled = true;
+                sv.pulseUs = (fire && ready) ? 2400 : 600;   // the gate only opens for a ready shot
             }
         }
     }
@@ -114,7 +127,8 @@ public:
     }
     double hood_ = 0.5, trim_ = 0, assistHood_ = 0.5, assistFly_ = 0, aimYaw_ = 0;
     bool solved_ = false;
-    int status_ = 0;   // 0 shooter off, 1 spinning / not ready, 2 at speed and aimed
+    int status_ = 0;
+    double dbg_[5] = {0, 0, 0, 0, 0};   // diagnostics for tests: solved, speed ratio, aim error, yaw rate, hood settled   // 0 shooter off, 1 spinning / not ready, 2 at speed and aimed
 private:
     bool competition_;
 };
@@ -195,9 +209,10 @@ GP_EXPORT(gp_step) int gp_step(double dt) {
 // Frame buffer layout (floats):
 // [0] t [1] phase [2] scoreRed [3] scoreBlue [4] nRobots [5] nElements [6] nCells
 // robots: x y heading alliance held tipped length width height intakeAngle flyAngle hoodAngle
-//         wheelAngle[4] (lf rf lb rb) pitch shooterStatus  (18 each)
+//         wheelAngle[4] (lf rf lb rb) pitch shooterStatus roll  (19 each)
 // elements: x y z kind(0 pollen,1 red nectar,2 blue nectar) radius visible qw qx qy qz squish nx ny nz (14 each)
-// cells: x y z up(1/0) alliance  (5 each), then hiveAngle[2] (rad about +x through the pivot)
+// cells: x y z up(1/0) alliance  (5 each), then hiveAngle[2] (rad about +x through the pivot),
+// then walls[4] x (flex m, flex speed m/s) for -x, +x, -y, +y
 GP_EXPORT(gp_frame) float* gp_frame() {
     gFrame.clear();
     if (!gWorld) return gFrame.data();
@@ -235,6 +250,7 @@ GP_EXPORT(gp_frame) float* gp_frame() {
         // shooter status LED: 0 off, 1 spinning up / not aimed, 2 ready (user robot's TeleOp only)
         size_t idx = size_t(&s - &w.robots()[0]);
         gFrame.push_back(float(idx == size_t(gUser) && gHuman ? gHuman->status_ : 0));
+        gFrame.push_back(float(r.roll));
     }
     for (auto& e : w.elements()) {
         bool vis = e.state != ElemState::HumanArea && e.state != ElemState::OutOfField;
@@ -263,9 +279,17 @@ GP_EXPORT(gp_frame) float* gp_frame() {
         }
         gFrame.push_back(float(down * hs.stateAngle));
     }
+    // perimeter walls (-x, +x, -y, +y): panel flex (m) and its speed (m/s), for the wobble and the thud
+    for (int k = 0; k < 4; ++k) { gFrame.push_back(float(w.wallDisplacement(k))); gFrame.push_back(float(w.wallVelocity(k))); }
     return gFrame.data();
 }
 GP_EXPORT(gp_frame_len) int gp_frame_len() { return int(gFrame.size()); }
+// test diagnostics of the built-in TeleOp's shooter (not shown in the app)
+GP_EXPORT(gp_shooter_debug) const char* gp_shooter_debug() {
+    Json j = Json::array();
+    if (gHuman) for (double v : gHuman->dbg_) j.push(v);
+    gText = j.dump(); return gText.c_str();
+}
 
 // Static geometry of robot i for rendering: chassis, wheels, intake roller and mouth, internal ball
 // path, shooter. Body frame metres (x forward, y left, z up).

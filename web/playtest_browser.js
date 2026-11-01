@@ -22,10 +22,10 @@ const out = process.argv[2];
   await p.keyboard.down('KeyW'); await p.evaluate(() => window.__gp.advance(1.5)); await p.keyboard.up('KeyW');
   const p1 = await pos();
   console.log('W drives the robot (m):', Math.hypot(p1[0] - p0[0], p1[1] - p0[1]).toFixed(2));
-  await p.keyboard.down('KeyR'); await p.evaluate(() => window.__gp.advance(3));
+  await p.keyboard.down('Space'); await p.evaluate(() => window.__gp.advance(3));
   const ledSeen = await p.evaluate(() => window.__gp.robots[0].led.material.emissive.getHexString());
-  console.log('shooter LED while R held (status, colour):', (await pos())[3], ledSeen);
-  await p.keyboard.up('KeyR');
+  console.log('shooter LED while Space held (status, colour):', (await pos())[3], ledSeen);
+  await p.keyboard.up('Space');
   await p.evaluate(() => window.__gp.renderFrame(true));
   await p.screenshot({ path: out + '/desktop_play.png', timeout: 180000 });
   // play the rest of the match out and check the end of match flow

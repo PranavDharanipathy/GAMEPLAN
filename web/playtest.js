@@ -11,7 +11,7 @@ const R = path.join(__dirname, "..");
   const season = JSON.parse(rd("seasons/biobuzz-2027/season.json"));
   sim.init(rd("seasons/biobuzz-2027/season.json"), rd("data/hardware/components.json"), robot, robot,
     { seed: +(process.argv[2] || 3), alliance: "red", mode: "practice", difficulty: 0.6, partnerInstruction: "do nothing" });
-  const RS = 18, ES = 14, DT = 0.02;
+  const RS = 19, ES = 14, DT = 0.02;
   let t = 0, fired = 0, log = [];
   const frame = () => {
     const f = sim.frame(), nR = f[4], nE = f[5];
@@ -47,11 +47,10 @@ const R = path.join(__dirname, "..");
   }
   log.push(`collected: holding ${frame().me.held} after ${t.toFixed(1)} s`);
   const tgt = { x: hive.pivot[0], y: -cellY };   // red AUDIENCE cell (y<0) is up at the start
-  // 2. shoot like a player: drive to a spot, hold RB (shooter assist), turn to face the up CELL,
-  //    wait for the ready LED, press A. Repeat from different distances, refilling between shots.
+  // 2. play like a driver with the built-in TeleOp: refill, drive into range of our HIVE and hold
+  //    FIRE (the robot turns to face the CELL and releases a ball whenever the shot is ready).
   const results = [];
-  const status = () => sim.frame()[7 + 17];
-  const spots = (process.argv[3] || "1.2,1.5,1.8,2.1,1.0,1.6").split(",").map(Number);
+  const spots = (process.argv[3] || "1.2,1.5,1.3,1.6,1.4,1.2").split(",").map(Number);
   for (const dist of spots) {
     for (let k = 0; k < 3000 && frame().me.held === 0; k++) {   // refill
       const { me, els } = frame();
@@ -61,30 +60,21 @@ const R = path.join(__dirname, "..");
       drive(me, free[0].x, free[0].y, Math.atan2(free[0].y - me.y, free[0].x - me.x), { rt: 1 }); step();
     }
     if (frame().me.held === 0) break;
-    const ang = Math.PI + (results.length % 3 - 1) * 0.5;   // approach from different directions on our side
+    const ang = Math.PI + (results.length % 3 - 1) * 0.5;
     const spot = { x: Math.max(-1.6, tgt.x + dist * Math.cos(ang)), y: Math.max(-1.6, Math.min(1.6, tgt.y + dist * Math.sin(ang))) };
-    let readyAt = null, st = [0, 0, 0], lastD = 0, lastE = 0;
-    for (let k = 0; k < 900; k++) {
-      const { me } = frame(); const gh = Math.atan2(tgt.y - me.y, tgt.x - me.x);
-      const d = drive(me, spot.x, spot.y, gh, { buttons: 1 << 5 }); step();
-      st[status()]++; lastD = d; lastE = Math.abs(wrap(gh - me.h));
-      if (d < 0.06 && status() === 2) { readyAt = t; break; }
-    }
-    if (process.env.DBG) console.log("spot", JSON.stringify(spot), "status counts", st, "dist to spot", lastD.toFixed(3), "aim err", lastE.toFixed(3));
     const before = inCells(), held0 = frame().me.held;
-    for (let k = 0; k < 40 && frame().me.held === held0; k++) { const { me } = frame(); drive(me, spot.x, spot.y, Math.atan2(tgt.y - me.y, tgt.x - me.x), { buttons: (1 << 5) | 1 }); step(); }
-    // follow the launched ball: the one that rises above 0.5 m first
-    let ballIdx = -1, best = null, launchPt = null;
-    const me0 = frame().me; launchPt = { x: me0.x, y: me0.y };
-    const rangeT = Math.hypot(tgt.x - me0.x, tgt.y - me0.y);
-    for (let k = 0; k < 110; k++) {
-      const { me, els } = frame(); drive(me, spot.x, spot.y, Math.atan2(tgt.y - me.y, tgt.x - me.x), { buttons: 1 << 5 }); step();
-      const E = frame().els;
-      if (ballIdx < 0) ballIdx = E.findIndex((e) => e.vis && e.z > 0.5 && e.z < 2.5 && Math.hypot(e.x - me.x, e.y - me.y) < 0.6);
-      if (ballIdx >= 0) { const b = E[ballIdx]; const r = Math.hypot(b.x - launchPt.x, b.y - launchPt.y); if (!best && r >= rangeT) best = { zAtTarget: +b.z.toFixed(2), lateral: +(((b.x - tgt.x) ** 2 + (b.y - tgt.y) ** 2) ** 0.5).toFixed(2) }; }
+    let shotT = null;
+    for (let k = 0; k < 600; k++) {   // drive there while holding FIRE; translation only, the robot aims itself
+      const { me } = frame();
+      const dx = spot.x - me.x, dy = spot.y - me.y, dd = Math.hypot(dx, dy), sp = Math.min(1, dd / 0.4) * 0.8;
+      const vx = dd > 0.02 ? dx / dd * sp : 0, vy = dd > 0.02 ? dy / dd * sp : 0;
+      const fwd = vx * Math.cos(me.h) + vy * Math.sin(me.h), left = -vx * Math.sin(me.h) + vy * Math.cos(me.h);
+      pad({ ly: -fwd, lx: -left, buttons: 1 }); step();
+      if (frame().me.held < held0) { shotT = t; break; }
+      if (process.env.DBG && k % 100 === 99) console.log(" t", t.toFixed(1), "d", dd.toFixed(2), "dbg", JSON.stringify(sim.shooterDebug().map((v) => +v.toFixed(3))));
     }
-    if (process.env.DBG) console.log("range", rangeT.toFixed(2), "ball at target range:", JSON.stringify(best), "target z 1.43");
-    results.push({ dist, ready: readyAt !== null, fired: held0 - frame().me.held, scored: inCells() - before });
+    for (let k = 0; k < 110; k++) { pad({}); step(); }   // watch the flight
+    results.push({ dist, fired: held0 - frame().me.held, scored: inCells() - before });
   }
   log.push("shots: " + JSON.stringify(results));
   console.log(log.join("\n"));

@@ -379,6 +379,7 @@ bool Robot::anyPoweredOutput() const {
 }
 
 void Robot::applyImpulse(Vec2 J, Vec2 p) {
+    contactImpulse += J;
     vel += J / cfg.mass;
     omega += (p - pos).cross(J) / yawInertia;
 }
@@ -466,7 +467,10 @@ void Robot::step(double dt, double t, double muScale) {
         omega += alpha * dt;
         pos += vel * dt;
         heading = wrapAngle(heading + omega * dt);
-        accel = acc.rotated(-heading);
+        // contact forces (a crash into the perimeter, a hit from another robot) are part of the
+        // chassis acceleration too: a hard stop rocks the robot onto its leading wheels
+        accel = (acc + contactImpulse / (m * dt)).rotated(-heading);
+        contactImpulse = {0, 0};
         // pitch about the support edge when inertial moment exceeds gravity's restoring moment
         double frontN = 0, rearN = 0;
         for (auto& w : wheels) (w.pos.x > 0 ? frontN : rearN) += w.normal;
@@ -499,7 +503,7 @@ void Robot::step(double dt, double t, double muScale) {
 Json Robot::snapshot() const {
     Json j = Json::object();
     Json c = Json::array();
-    for (double v : {pos.x, pos.y, vel.x, vel.y, heading, omega, accel.x, accel.y, pitch, roll, pitchRate, rollRate}) c.push(v);
+    for (double v : {pos.x, pos.y, vel.x, vel.y, heading, omega, accel.x, accel.y, pitch, roll, pitchRate, rollRate, contactImpulse.x, contactImpulse.y}) c.push(v);
     j.set("chassis", c);
     j.set("tipped", tipped);
     j.set("disabled", disabled);
@@ -538,6 +542,7 @@ void Robot::restore(const Json& j) {
     const Json& c = j["chassis"];
     pos = {c[0].num(), c[1].num()}; vel = {c[2].num(), c[3].num()}; heading = c[4].num(); omega = c[5].num();
     accel = {c[6].num(), c[7].num()}; pitch = c[8].num(); roll = c[9].num(); pitchRate = c[10].num(); rollRate = c[11].num();
+    contactImpulse = c.size() >= 14 ? Vec2{c[12].num(), c[13].num()} : Vec2{0, 0};
     tipped = j["tipped"].boolean(); disabled = j["disabled"].boolean(); rcAlive = j["rcAlive"].boolean();
     for (size_t i = 0; i < joints.size(); ++i) {
         const Json& o = j["joints"][i];

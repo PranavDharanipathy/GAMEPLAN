@@ -337,6 +337,15 @@ void World::step() {
 // ---------------------------------------------------------------------------------------
 void World::collideRobots(double dt) {
     const double half = season_.half;
+    // perimeter panels flex under the previous step's contact forces and ring down (polycarbonate in
+    // an aluminium frame: ~20 Hz, about a centimetre at a full-speed impact; estimate)
+    for (int w = 0; w < 4; ++w) {
+        const double mW = 6.0, kW = 9.0e4, cW = 2 * 0.15 * std::sqrt(kW * mW);
+        double a = (wallForce_[w] - kW * wallDisp_[w] - cW * wallVel_[w]) / mW;
+        wallVel_[w] += a * dt;
+        wallDisp_[w] += wallVel_[w] * dt;
+        wallForce_[w] = 0;
+    }
     const size_t n = robots_.size();
     for (size_t i = 0; i < n; ++i) {
         Robot& r = *robots_[i].robot;
@@ -358,6 +367,7 @@ void World::collideRobots(double dt) {
                     double vt = pv.dot(tang);
                     Vec2 f = nrm * fn + tang * (-0.3 * fn * std::tanh(vt / 0.05));
                     r.applyImpulse(f * dt, c);
+                    wallForce_[axis * 2 + (sgnw > 0 ? 1 : 0)] += fn;
                 }
         }
         // HIVE frame legs (metal; also ESD discharge paths)
