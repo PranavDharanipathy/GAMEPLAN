@@ -30,7 +30,15 @@ shutil.copy2(os.path.join(root, "build-web", "gameplan.wasm"), os.path.join(out,
 # official field CAD, tessellated by tools/cad_to_glb.py and reduced by tools/decimate_glb.py
 fa = os.path.join(out, "assets", "field")
 os.makedirs(fa, exist_ok=True)
+import base64, struct
 for f in sorted(os.listdir(os.path.join(root, "assets", "field"))):
-    if f.endswith(".glb"):
-        shutil.copy2(os.path.join(root, "assets", "field", f), os.path.join(fa, f))
+    if not f.endswith(".glb"):
+        continue
+    # served as embedded glTF JSON (.gltf.json): artifact hosting only serves standard web types
+    b = open(os.path.join(root, "assets", "field", f), "rb").read()
+    jl = struct.unpack("<I", b[12:16])[0]
+    doc = json.loads(b[20:20 + jl])
+    binary = b[20 + jl + 8:]
+    doc["buffers"] = [{"byteLength": len(binary), "uri": "data:application/octet-stream;base64," + base64.b64encode(binary).decode()}]
+    open(os.path.join(fa, f[:-4] + ".gltf.json"), "w").write(json.dumps(doc, separators=(",", ":")))
 print("site:", out, len(page), "bytes html")

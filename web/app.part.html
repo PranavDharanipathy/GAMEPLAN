@@ -213,7 +213,7 @@ const hiveCadAngle = [0, F.hives[1].initialUpCell.includes("scoring") ? F.hives[
 const stickerIds = { "red goal april tag (audience)": [34, 35, 36, 37], "red goal april tag (scoring)": [30, 31, 32, 33],
   "blue goal april tag (audience)": [38, 39, 40, 41], "blue goal april tag (scoring)": [42, 43, 44, 45] };
 function loadGroup(group, parent) {
-  return new Promise((res) => loader.load(`assets/field/${group}.glb`, (g) => {
+  return new Promise((res) => loader.load(`assets/field/${group}.gltf.json`, (g) => {
     g.scene.traverse((o) => {
       if (!o.isMesh) return;
       const nm = o.name || (o.parent && o.parent.name) || "";
@@ -238,7 +238,7 @@ async function loadField() {
     piv.add(inner); gp.add(piv); hives[h] = piv;
     ok.push(await loadGroup(h ? "hive_blue" : "hive_red", inner));
   }
-  const geo = (name) => new Promise((res) => loader.load(`assets/field/${name}.glb`, (g) => { let m = null; g.scene.traverse((o) => { if (o.isMesh && !m) m = o.geometry; }); res(m); }, undefined, () => res(null)));
+  const geo = (name) => new Promise((res) => loader.load(`assets/field/${name}.gltf.json`, (g) => { let m = null; g.scene.traverse((o) => { if (o.isMesh && !m) m = o.geometry; }); res(m); }, undefined, () => res(null)));
   ballGeo.pollen = await geo("pollen"); ballGeo.nectar = await geo("nectar");
   ballGeo.pollen_lod1 = await geo("pollen_lod1"); ballGeo.nectar_lod1 = await geo("nectar_lod1");
   buildBalls();
