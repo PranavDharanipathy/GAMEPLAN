@@ -1,0 +1,121 @@
+{
+  "schema": "gameplan.components/1",
+  "version": "1.0.0",
+  "provenanceLegend": {
+    "datasheet-verified": "value read from the manufacturer page during authoring (URL + date recorded)",
+    "datasheet-recalled": "manufacturer value known to the author but NOT re-fetched this session; must be re-verified",
+    "derived": "computed from other listed values (formula recorded)",
+    "estimate": "engineering estimate from comparable hardware; uncertainty range mandatory"
+  },
+  "motors": [
+    {
+      "id": "gobilda-5203-bare", "name": "goBILDA 5203 Yellow Jacket motor (bare, 1:1 equivalent)", "ftcLegal": true,
+      "nominalVoltage_V": 12.0, "freeSpeed_rpm": 5991.0, "freeCurrent_A": 0.25, "stallCurrent_A": 9.2, "stallTorque_Nm": 0.1241,
+      "encoderCPR": 28,
+      "rotorInertia_kgm2": 2.0e-6,
+      "thermal": {"windingToCase_K_per_W": 1.6, "caseToAmbient_K_per_W": 6.0, "windingCap_J_per_K": 9.0, "caseCap_J_per_K": 95.0, "copperAlpha_per_K": 0.00393, "maxWinding_C": 150.0},
+      "provenance": {"kind": "derived", "confidence": "high",
+        "source": "https://www.gobilda.com/5203-series-yellow-jacket-planetary-gear-motor-19-2-1-ratio-24mm-length-8mm-rex-shaft-312-rpm-3-3-5v-encoder/ (fetched 2026-11-01): 19.2:1 = 312 RPM, 0.25 A no-load, 9.2 A stall, 24.3 kg.cm stall @12V",
+        "formula": "stallTorque = 24.3 kgf.cm * 0.0980665 / 19.2032 ; freeSpeed = 312 * 19.2032",
+        "note": "stall torque derived through the gearbox therefore already includes gearbox stall losses; thermal/inertia values are estimates (+/-40%)"}
+    },
+    {
+      "id": "rev-hd-hex-bare", "name": "REV HD Hex Motor (REV-41-1291), bare", "ftcLegal": true,
+      "nominalVoltage_V": 12.0, "freeSpeed_rpm": 6000.0, "freeCurrent_A": 0.4, "stallCurrent_A": 8.5, "stallTorque_Nm": 0.105,
+      "encoderCPR": 28,
+      "rotorInertia_kgm2": 2.2e-6,
+      "thermal": {"windingToCase_K_per_W": 1.6, "caseToAmbient_K_per_W": 5.5, "windingCap_J_per_K": 10.0, "caseCap_J_per_K": 110.0, "copperAlpha_per_K": 0.00393, "maxWinding_C": 150.0},
+      "provenance": {"kind": "datasheet-verified", "confidence": "high",
+        "source": "https://docs.revrobotics.com/duo-build/actuators/motors/hd-hex-motor (fetched 2026-11-01): 12 V, 400 mA no-load, 8.5 A stall, 6000 rpm, 0.105 N.m, 28 counts/rev at motor",
+        "note": "thermal/inertia values are estimates (+/-40%)"}
+    },
+    {
+      "id": "rev-core-hex", "name": "REV Core Hex Motor (REV-41-1300), output", "ftcLegal": true,
+      "nominalVoltage_V": 12.0, "freeSpeed_rpm": 125.0, "freeCurrent_A": 0.3, "stallCurrent_A": 4.4, "stallTorque_Nm": 3.2,
+      "encoderCPR": 288, "integralGearRatio": 72.0,
+      "rotorInertia_kgm2": 1.0e-6,
+      "thermal": {"windingToCase_K_per_W": 2.0, "caseToAmbient_K_per_W": 7.0, "windingCap_J_per_K": 6.0, "caseCap_J_per_K": 70.0, "copperAlpha_per_K": 0.00393, "maxWinding_C": 150.0},
+      "provenance": {"kind": "datasheet-recalled", "confidence": "medium", "source": "REV Core Hex product documentation", "note": "re-verify"}
+    }
+  ],
+  "gearboxes": [
+    {"id": "gobilda-yj-19.2", "ratio": 19.2032, "efficiency": 0.85, "backlash_rad": 0.012, "stages": 2,
+     "provenance": {"kind": "estimate", "confidence": "medium", "basis": "ratio formula from goBILDA page ((1+46/17)*(1+46/11)); efficiency/backlash from typical 2-stage planetary"}},
+    {"id": "gobilda-yj-13.7", "ratio": 13.7, "efficiency": 0.86, "backlash_rad": 0.012, "stages": 2,
+     "provenance": {"kind": "datasheet-recalled", "confidence": "medium"}},
+    {"id": "gobilda-yj-5.2", "ratio": 5.2, "efficiency": 0.90, "backlash_rad": 0.010, "stages": 1,
+     "provenance": {"kind": "datasheet-recalled", "confidence": "medium"}},
+    {"id": "gobilda-yj-1", "ratio": 1.0, "efficiency": 0.98, "backlash_rad": 0.0, "stages": 0, "provenance": {"kind": "derived", "confidence": "high"}},
+    {"id": "rev-ultraplanetary-20", "ratio": 18.9, "efficiency": 0.85, "backlash_rad": 0.015, "stages": 2,
+     "provenance": {"kind": "datasheet-recalled", "confidence": "medium", "note": "nominal 4:1*5:1 cartridges (actual 3.61*5.23)"}}
+  ],
+  "servos": [
+    {"id": "gobilda-2000-0025-0002", "name": "goBILDA Dual Mode Servo (25-2, Torque)", "ftcLegal": true,
+     "voltage_V": 6.0, "stallTorque_Nm": 2.45, "noLoadSpeed_rad_s": 4.36, "stallCurrent_A": 2.5, "idleCurrent_A": 0.008, "holdingCurrentFrac": 0.08,
+     "rangeRad": 5.236, "deadband_us": 4.0, "pwmRange_us": [500, 2500],
+     "controller": {"kp_per_rad": 40.0, "slewLimit": 1.0},
+     "provenance": {"kind": "datasheet-recalled", "confidence": "medium", "note": "25 kg.cm, 0.25 s/60deg at 6V; stall current 2.5 A recalled; re-verify"}},
+    {"id": "rev-41-1097", "name": "REV Smart Robot Servo (REV-41-1097)", "ftcLegal": true,
+     "voltage_V": 6.0, "stallTorque_Nm": 1.32, "noLoadSpeed_rad_s": 7.48, "stallCurrent_A": 2.0, "idleCurrent_A": 0.008, "holdingCurrentFrac": 0.07,
+     "rangeRad": 4.712, "deadband_us": 4.0, "pwmRange_us": [500, 2500],
+     "controller": {"kp_per_rad": 45.0, "slewLimit": 1.0},
+     "provenance": {"kind": "datasheet-recalled", "confidence": "medium", "note": "13.5 kg.cm, 0.14 s/60deg @6V; stall current estimated"}},
+    {"id": "axon-max-plus", "name": "Axon MAX+", "ftcLegal": true,
+     "voltage_V": 6.0, "stallTorque_Nm": 3.43, "noLoadSpeed_rad_s": 6.98, "stallCurrent_A": 3.6, "idleCurrent_A": 0.010, "holdingCurrentFrac": 0.10,
+     "rangeRad": 6.109, "deadband_us": 2.0, "pwmRange_us": [500, 2500],
+     "controller": {"kp_per_rad": 60.0, "slewLimit": 1.0},
+     "provenance": {"kind": "estimate", "confidence": "low", "note": "on the R502 pre-approved list; electrical figures estimated from comparable coreless servos"}},
+    {"id": "generic-cr-servo", "name": "Continuous-rotation servo (generic, goBILDA dual-mode in CR mode)", "ftcLegal": true, "continuous": true,
+     "voltage_V": 6.0, "stallTorque_Nm": 2.45, "noLoadSpeed_rad_s": 15.7, "stallCurrent_A": 2.5, "idleCurrent_A": 0.008, "holdingCurrentFrac": 0.0,
+     "rangeRad": 0.0, "deadband_us": 10.0, "pwmRange_us": [500, 2500],
+     "controller": {"kp_per_rad": 0.0, "slewLimit": 1.0},
+     "provenance": {"kind": "estimate", "confidence": "low"}}
+  ],
+  "batteries": [
+    {"id": "rev-12v-slim-3000", "name": "12V 3000 mAh NiMH (10-cell, 20 A fuse)", "ftcLegal": true,
+     "cells": 10, "capacity_Ah": 3.0,
+     "ocvCurveSoC": [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0],
+     "ocvCurveCell_V": [1.00, 1.15, 1.20, 1.23, 1.245, 1.255, 1.265, 1.275, 1.29, 1.31, 1.34, 1.37, 1.42],
+     "r0_ohm": 0.020, "r1_ohm": 0.012, "c1_F": 900.0, "r0AgeFactorPerCycle": 0.0004,
+     "r0TempCoeff_per_K": -0.006, "thermalMass_J_per_K": 520.0, "thermalR_K_per_W": 3.5,
+     "fuse_A": 20.0, "fuseI2t_A2s": 1800.0,
+     "provenance": {"kind": "estimate", "confidence": "medium",
+       "basis": "NiMH OCV curve shape from cell chemistry literature; fresh pack total ohmic resistance 15-30 mOhm typical; RC branch models diffusion recovery (tau ~10 s); fuse 20 A ATM mini per R601"}}
+  ],
+  "interconnects": {
+    "mainSwitch_ohm": 0.004, "xt30Pair_ohm": 0.0015, "anderson_ohm": 0.0010,
+    "wire_ohm_per_m": {"12AWG": 0.00521, "14AWG": 0.00828, "16AWG": 0.0132, "18AWG": 0.0210, "20AWG": 0.0333},
+    "copperAlpha_per_K": 0.00393,
+    "provenance": {"kind": "estimate", "confidence": "medium", "basis": "AWG copper tables at 20 C (high confidence); connector/switch contact resistance typical published values (medium)"}
+  },
+  "controllers": [
+    {"id": "rev-31-1595", "name": "REV Control Hub", "role": "robot-controller",
+     "motorPorts": 4, "servoPorts": 6, "i2cBuses": 4, "digitalPorts": 8, "analogPorts": 4,
+     "hbridge": {"pwmFrequency_Hz": 20000, "onResistance_ohm": 0.025, "currentLimit_A": 14.0, "currentLimitRecover_s": 0.05},
+     "servoRail": {"voltage_V": 5.0, "pairLimit_A": 2.0, "pairs": [[0,1],[2,3],[4,5]], "railLimit_A": 6.0, "foldbackVoltage_V": 4.2},
+     "logicLoad_A": 0.35, "brownout_V": 7.0, "brownoutRecover_V": 7.5, "rebootTime_s": 18.0,
+     "firmwareVelocityLoop_Hz": 1000.0,
+     "provenance": {"kind": "datasheet-recalled", "confidence": "medium",
+       "note": "Port counts high confidence. Servo pair limit/rail limit, H-bridge limit, brownout and reboot time are recalled/estimated and must be verified against docs.revrobotics.com (spec page URL moved; 404 on 2026-11-01)."}},
+    {"id": "rev-31-1153", "name": "REV Expansion Hub", "role": "expansion",
+     "motorPorts": 4, "servoPorts": 6, "i2cBuses": 4, "digitalPorts": 8, "analogPorts": 4,
+     "hbridge": {"pwmFrequency_Hz": 20000, "onResistance_ohm": 0.025, "currentLimit_A": 14.0, "currentLimitRecover_s": 0.05},
+     "servoRail": {"voltage_V": 5.0, "pairLimit_A": 2.0, "pairs": [[0,1],[2,3],[4,5]], "railLimit_A": 6.0, "foldbackVoltage_V": 4.2},
+     "logicLoad_A": 0.15, "brownout_V": 7.0, "brownoutRecover_V": 7.5, "rebootTime_s": 2.5,
+     "firmwareVelocityLoop_Hz": 1000.0,
+     "provenance": {"kind": "datasheet-recalled", "confidence": "medium", "note": "same caveats as Control Hub"}}
+  ],
+  "servoPowerDevices": [
+    {"id": "rev-11-1144", "name": "REV Servo Power Module", "voltage_V": 6.0, "portLimit_A": 2.0, "totalLimit_A": 15.0,
+     "provenance": {"kind": "datasheet-recalled", "confidence": "low"}},
+    {"id": "gobilda-3125-0001-0001", "name": "goBILDA 6V Servo Power Injector", "voltage_V": 6.0, "portLimit_A": 4.0, "totalLimit_A": 8.0,
+     "provenance": {"kind": "estimate", "confidence": "low"}}
+  ],
+  "sensors": [
+    {"id": "rev-color-v3", "name": "REV Color Sensor V3", "bus": "i2c", "sampleRate_Hz": 50, "i2cReadCost_us": 3500},
+    {"id": "rev-2m-distance", "name": "REV 2m Distance Sensor", "bus": "i2c", "sampleRate_Hz": 30, "i2cReadCost_us": 2500, "range_m": [0.05, 2.0], "noiseSigma_m": 0.008},
+    {"id": "gobilda-pinpoint", "name": "goBILDA Pinpoint Odometry Computer", "bus": "i2c", "sampleRate_Hz": 1500, "i2cReadCost_us": 1900},
+    {"id": "bhi260-imu", "name": "Control Hub BHI260AP IMU", "bus": "i2c-internal", "sampleRate_Hz": 100, "i2cReadCost_us": 1700,
+     "gyroNoise_rad_s": 0.0012, "gyroBiasWalk_rad_s2": 0.00002}
+  ]
+}

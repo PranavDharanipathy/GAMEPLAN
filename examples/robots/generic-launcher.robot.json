@@ -1,0 +1,45 @@
+{
+  "schema": "gameplan.robot/1",
+  "name": "Generic BIOBUZZ launcher",
+  "team": "",
+  "variant": "reference",
+  "description": "Reference mecanum robot with roller intake, single-flywheel launcher, servo gate and servo hood. Used for AI robots and tests. Masses and geometry are representative estimates, not a specific team's robot.",
+  "chassis": {"mass_kg": 13.0, "length_m": 0.432, "width_m": 0.432, "height_m": 0.40, "cog_m": [0.0, 0.0, 0.11]},
+  "drivetrain": {
+    "type": "mecanum", "wheelRadius_m": 0.052, "wheelInertia_kgm2": 1.6e-4, "tileMu": 0.95, "rollerRollingMu": 0.02,
+    "wheels": [
+      {"motor": "lf", "pos": [0.16, 0.17]}, {"motor": "rf", "pos": [0.16, -0.17]},
+      {"motor": "lb", "pos": [-0.16, 0.17]}, {"motor": "rb", "pos": [-0.16, -0.17]}
+    ]
+  },
+  "battery": {"component": "rev-12v-slim-3000", "soc": 0.95, "cycles": 20},
+  "wiring": {"main": {"awg": "12AWG", "length_m": 0.35}},
+  "hubs": [
+    {"id": "control", "component": "rev-31-1595", "parent": "battery", "awg": "14AWG", "length_m": 0.30, "xt30": 2},
+    {"id": "expansion", "component": "rev-31-1153", "parent": "control", "awg": "16AWG", "length_m": 0.25, "xt30": 2}
+  ],
+  "motors": [
+    {"name": "lf", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 0, "lead": {"awg": "18AWG", "length_m": 0.45}},
+    {"name": "rf", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 1, "lead": {"awg": "18AWG", "length_m": 0.45}},
+    {"name": "lb", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 2, "lead": {"awg": "18AWG", "length_m": 0.45}},
+    {"name": "rb", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 3, "lead": {"awg": "18AWG", "length_m": 0.45}},
+    {"name": "intake", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-5.2", "hub": "expansion", "port": 0, "lead": {"awg": "18AWG", "length_m": 0.4}},
+    {"name": "shooter", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-1", "hub": "expansion", "port": 1, "lead": {"awg": "18AWG", "length_m": 0.4}}
+  ],
+  "servos": [
+    {"name": "gate", "component": "gobilda-2000-0025-0002", "hub": "control", "port": 0, "load": {"inertia_kgm2": 0.0002, "gravityTorque_Nm": 0.05, "minAngle_rad": -2.6, "maxAngle_rad": 2.6}},
+    {"name": "hood", "component": "rev-41-1097", "hub": "control", "port": 2, "load": {"inertia_kgm2": 0.0006, "gravityTorque_Nm": 0.25, "minAngle_rad": -2.3, "maxAngle_rad": 2.3}}
+  ],
+  "mechanisms": [
+    {"id": "intake", "type": "intake", "motor": "intake", "inertia_kgm2": 3.0e-4, "rollerRadius_m": 0.030, "captureSurfaceSpeed_mps": 1.5, "width_m": 0.30, "reach_m": 0.07, "capacity": 4},
+    {"id": "shooter", "type": "flywheel", "motor": "shooter", "inertia_kgm2": 1.4e-3, "radius_m": 0.048, "launchEfficiency": 0.46, "launchHeight_m": 0.33, "minLaunchFraction": 0.25},
+    {"id": "gate", "type": "gate", "servo": "gate", "openAbove": 0.6, "feedInterval_s": 0.28},
+    {"id": "hood", "type": "hood", "servo": "hood", "angleAt0_rad": 0.70, "angleAt1_rad": 1.25}
+  ],
+  "sensors": [
+    {"name": "imu", "type": "imu", "hub": "control"},
+    {"name": "Control Hub", "type": "voltage", "hub": "control"},
+    {"name": "Webcam 1", "type": "webcam", "pos": [0.20, 0.0, 0.25], "yaw_rad": 0.0, "pitch_rad": 0.45, "hfov_rad": 1.22, "vfov_rad": 0.92, "res": [640, 480], "fps": 30}
+  ],
+  "imperfections": {"wheelMisalign_rad": 0.006, "diagonalLoadImbalance": 0.04}
+}

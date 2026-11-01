@@ -1,0 +1,16 @@
+{
+  "season": "seasons/biobuzz-2027/season.json",
+  "components": "data/hardware/components.json",
+  "seed": 7,
+  "mode": "competition",
+  "fidelity": "realtime",
+  "uncertainty": {"all": "realistic"},
+  "env": {"humidity": 0.35},
+  "referee": {"profile": "standard"},
+  "robots": [
+    {"label": "red1", "alliance": "red", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "aggressive", "difficulty": 0.8}},
+    {"label": "red2", "alliance": "red", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "coordinated", "difficulty": 0.7}},
+    {"label": "blue1", "alliance": "blue", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "balanced", "difficulty": 0.7}},
+    {"label": "blue2", "alliance": "blue", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "defensive", "difficulty": 0.6}}
+  ]
+}

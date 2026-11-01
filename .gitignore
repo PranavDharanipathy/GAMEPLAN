@@ -1,0 +1,13 @@
+build/
+out/
+runtime/build/
+runtime/.gradle/
+runtime/sdk-cache/
+*.class
+.DS_Store
+unreal/GamePlan/Binaries/
+unreal/GamePlan/Intermediate/
+unreal/GamePlan/Saved/
+unreal/GamePlan/DerivedDataCache/
+unreal/GamePlan/Plugins/*/Binaries/
+unreal/GamePlan/Plugins/*/Intermediate/

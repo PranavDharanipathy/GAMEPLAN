@@ -1,0 +1,777 @@
+{
+  "schema": "gameplan.season/1",
+  "id": "biobuzz-2027",
+  "name": "BIOBUZZ presented by RTX",
+  "seasonYears": "2026-2027",
+  "packageVersion": "1.0.0",
+  "rulesEngineVersion": "biobuzz-rules/1.0.0",
+  "manual": {
+    "title": "BIOBUZZ Competition Manual",
+    "teamUpdate": "TU07",
+    "date": "2026-10-29",
+    "source": "https://ftc-resources.firstinspires.org/ftc/archive/2027/game/manual",
+    "note": "Latest English manual is authoritative. Values here are transcribed from TU07; re-check on every season refresh."
+  },
+  "fieldCad": {
+    "source": "https://ftc-resources.firstinspires.org/ftc/archive/2027/field/field-cad-step",
+    "file": "field-cad-step.step (Onshape export 2026-09-09T15:05:36Z)",
+    "sha256": "05b35961c7df847741031f00fda73ddd068537f809e92a11b1cd59a94bcc8331",
+    "frameMapping": "gameplan(x,y,z) = cad(x, -z, y); CAD is Y-up metres",
+    "generalTolerance_m": 0.0254
+  },
+  "frame": {
+    "origin": "field centre on the tile surface",
+    "x": "toward the BLUE alliance wall",
+    "y": "away from the audience (toward the rear/scoring wall)",
+    "z": "up",
+    "units": "SI (metres, kilograms, seconds, radians)"
+  },
+  "timing": {
+    "auto_s": 30.0,
+    "transition_s": 8.0,
+    "teleop_s": 120.0,
+    "flowerUnlockRemaining_s": 60.0,
+    "nectarUnlockRemaining_s": 60.0,
+    "endgameWarningRemaining_s": 20.0,
+    "source": "Manual 10.1, 10.4, Table 9-1, G410, G426"
+  },
+  "audioCues": [
+    {
+      "id": "match_start",
+      "timer": "2:30",
+      "phase": "AUTO",
+      "atMatchTime_s": 0.0,
+      "cue": "Cavalry Charge",
+      "note": "countdown 'This MATCH begins in 3,2,1, GO' optional"
+    },
+    {
+      "id": "auto_end",
+      "timer": "2:00",
+      "phase": "TRANSITION",
+      "atMatchTime_s": 30.0,
+      "cue": "Buzzer x3"
+    },
+    {
+      "id": "transition_callout",
+      "timer": "0:08-0:01",
+      "phase": "TRANSITION",
+      "atMatchTime_s": 30.0,
+      "cue": "Drivers, pick up your controllers, 3-2-1"
+    },
+    {
+      "id": "teleop_start",
+      "timer": "2:00",
+      "phase": "TELEOP",
+      "atMatchTime_s": 38.0,
+      "cue": "3 Bells"
+    },
+    {
+      "id": "flower_unlock",
+      "timer": "1:00",
+      "phase": "TELEOP",
+      "atMatchTime_s": 98.0,
+      "cue": "Chime"
+    },
+    {
+      "id": "final_20",
+      "timer": "0:20",
+      "phase": "TELEOP",
+      "atMatchTime_s": 138.0,
+      "cue": "Train Whistle"
+    },
+    {
+      "id": "match_end",
+      "timer": "0:00",
+      "phase": "POST",
+      "atMatchTime_s": 158.0,
+      "cue": "3-second Buzzer"
+    },
+    {
+      "id": "match_stopped",
+      "timer": "N/A",
+      "phase": "ANY",
+      "atMatchTime_s": -1.0,
+      "cue": "Foghorn"
+    }
+  ],
+  "audioPolicy": "Audio is a courtesy; the visual FIELD timer is authoritative (Manual 9.11). Official recordings are not bundled; substitute cues with identical timing/semantics are used until a licensed source is available.",
+  "field": {
+    "halfSize_m": 1.8288,
+    "tiles": {
+      "count": 36,
+      "grid": 6,
+      "pitch_m": 0.6096,
+      "thickness_m": 0.015,
+      "columns": "A..F from the RED wall (x=-1.8288) to the BLUE wall",
+      "rows": "1..6 from the audience wall (y=-1.8288)",
+      "rowConvention": {
+        "confidence": "high",
+        "evidence": "CAD: red LOADING ZONE tape at tile A5 and red GARDEN at A1 match Event Field Setup Guide 8.3/8.4 only with row 1 at the audience wall"
+      }
+    },
+    "perimeter": {
+      "wallHeight_m": 0.3048,
+      "wallThickness_m": 0.0254,
+      "source": "am-0481 perimeter kit; height nominal 12 in (estimate, verify against CAD)"
+    },
+    "allianceSides": {
+      "red": {
+        "xMax": 0.0,
+        "columns": "A,B,C"
+      },
+      "blue": {
+        "xMin": 0.0,
+        "columns": "D,E,F"
+      },
+      "source": "G304.A, G402"
+    },
+    "allianceAreas": {
+      "red": {
+        "xMin": -3.2004,
+        "xMax": -1.8288,
+        "yMin": -1.2319,
+        "yMax": 1.2319
+      },
+      "blue": {
+        "xMin": 1.8288,
+        "xMax": 3.2004,
+        "yMin": -1.2319,
+        "yMax": 1.2319
+      },
+      "source": "Manual 9.3: ~97 in wide x 54 in deep, width from tile seam 1 to seam 5 (EFSG 8.5)"
+    },
+    "loadingZones": {
+      "red": {
+        "xMin": -1.8288,
+        "xMax": -1.5494,
+        "yMin": 0.6096,
+        "yMax": 1.2192,
+        "tile": "A5"
+      },
+      "blue": {
+        "xMin": 1.5494,
+        "xMax": 1.8288,
+        "yMin": -1.2192,
+        "yMax": -0.6096,
+        "tile": "F2"
+      },
+      "source": "Manual 9.3 (23 x 11 in) + CAD tape placement"
+    },
+    "gardens": {
+      "red": {
+        "xMin": -1.7806,
+        "xMax": -1.2042,
+        "yMin": -1.7806,
+        "yMax": -1.7298,
+        "tile": "A1"
+      },
+      "blue": {
+        "xMin": 1.2042,
+        "xMax": 1.7806,
+        "yMin": 1.7298,
+        "yMax": 1.7806,
+        "tile": "F6"
+      },
+      "source": "Manual 9.3 (23 x 2 in), CAD tape strips at |y|=1.7425 and 1.7679 (1 in each)",
+      "note": "GARDEN is defined by the outside edge of the tape; an element at least partially inside the volume scores (10.5.3)."
+    },
+    "hiveFrame": {
+      "width_m": 1.2563,
+      "depth_m": 0.9893,
+      "pivotHeight_m": 1.1163,
+      "widthAxis": "x",
+      "legs": [
+        {
+          "base": [
+            -0.6282,
+            -0.4947,
+            0.0
+          ],
+          "apex": [
+            -0.6282,
+            0.0,
+            1.1163
+          ]
+        },
+        {
+          "base": [
+            -0.6282,
+            0.4947,
+            0.0
+          ],
+          "apex": [
+            -0.6282,
+            0.0,
+            1.1163
+          ]
+        },
+        {
+          "base": [
+            0.6282,
+            -0.4947,
+            0.0
+          ],
+          "apex": [
+            0.6282,
+            0.0,
+            1.1163
+          ]
+        },
+        {
+          "base": [
+            0.6282,
+            0.4947,
+            0.0
+          ],
+          "apex": [
+            0.6282,
+            0.0,
+            1.1163
+          ]
+        }
+      ],
+      "legRadius_m": 0.019,
+      "source": "Manual 9.6.1 (49.46 x 38.95 in, pivot 43.95 in); leg geometry simplified to 4 straight members (estimate)"
+    },
+    "hives": [
+      {
+        "alliance": "red",
+        "pivot": [
+          -0.3236,
+          0.0,
+          1.1163
+        ],
+        "axis": "x",
+        "stateAngle_rad": 1.0472,
+        "cells": [
+          {
+            "id": "red_audience",
+            "side": "audience",
+            "offset_m": -0.2388,
+            "aprilTags": [
+              34,
+              35,
+              36,
+              37
+            ],
+            "upClusterCenter": [
+              -0.3236,
+              -0.3823,
+              1.2934
+            ],
+            "upClusterNormal": [
+              0.0,
+              -0.5,
+              -0.866
+            ]
+          },
+          {
+            "id": "red_scoring",
+            "side": "scoring",
+            "offset_m": 0.2388,
+            "aprilTags": [
+              30,
+              31,
+              32,
+              33
+            ],
+            "upClusterCenter": [
+              -0.3236,
+              0.3823,
+              1.2934
+            ],
+            "upClusterNormal": [
+              0.0,
+              0.5,
+              -0.866
+            ]
+          }
+        ],
+        "initialUpCell": "red_audience"
+      },
+      {
+        "alliance": "blue",
+        "pivot": [
+          0.3236,
+          0.0,
+          1.1163
+        ],
+        "axis": "x",
+        "stateAngle_rad": 1.0472,
+        "cells": [
+          {
+            "id": "blue_audience",
+            "side": "audience",
+            "offset_m": -0.2388,
+            "aprilTags": [
+              38,
+              39,
+              40,
+              41
+            ],
+            "upClusterCenter": [
+              0.3236,
+              -0.3823,
+              1.2934
+            ],
+            "upClusterNormal": [
+              0.0,
+              -0.5,
+              -0.866
+            ]
+          },
+          {
+            "id": "blue_scoring",
+            "side": "scoring",
+            "offset_m": 0.2388,
+            "aprilTags": [
+              42,
+              43,
+              44,
+              45
+            ],
+            "upClusterCenter": [
+              0.3236,
+              0.3823,
+              1.2934
+            ],
+            "upClusterNormal": [
+              0.0,
+              0.5,
+              -0.866
+            ]
+          }
+        ],
+        "initialUpCell": "blue_scoring"
+      }
+    ],
+    "cell": {
+      "openingWidth_m": 0.508,
+      "openingHeight_m": 0.3556,
+      "depth_m": 0.3048,
+      "tiltAngle_rad": 0.5236,
+      "source": "Manual 9.6.2 (20 x 14 x 12 in); tilt 30 deg from CAD tag normals"
+    },
+    "hiveTip": {
+      "model": "bistable torque threshold on element tip-weight sum in the up-facing cell",
+      "pollenTipWeight": 1.0,
+      "nectarTipWeight": 1.6667,
+      "threshold": 7.5,
+      "thresholdSigma": 0.25,
+      "impactBonusPerMps": 0.12,
+      "settleTime_s": 1.2,
+      "spillFraction": 1.0,
+      "provenance": {
+        "kind": "derived",
+        "confidence": "medium",
+        "evidence": "Event Field Setup Guide 12.3: cell must tip with 8 POLLEN (tossed) or 3 NECTAR + 3 POLLEN (tossed); must NOT tip at 7 POLLEN or 3 NECTAR + 2 POLLEN when tossed-in only marginally. Weights solved so that 8P and 3N+3P both exceed and 7P/3N+1P do not.",
+        "uncertainty": "per-field calibration varies (ballast washers); thresholdSigma models event-to-event spread"
+      }
+    },
+    "flowers": [
+      {
+        "id": "flower_red_wall",
+        "axis": [
+          -1.7282,
+          -0.5942
+        ],
+        "wall": "red"
+      },
+      {
+        "id": "flower_rear",
+        "axis": [
+          -0.5942,
+          1.7282
+        ],
+        "wall": "rear"
+      },
+      {
+        "id": "flower_audience",
+        "axis": [
+          0.5942,
+          -1.7282
+        ],
+        "wall": "audience"
+      },
+      {
+        "id": "flower_blue_wall",
+        "axis": [
+          1.7282,
+          0.5942
+        ],
+        "wall": "blue"
+      }
+    ],
+    "flowerGeometry": {
+      "topOpeningDiameter_m": 0.1015,
+      "topHeight_m": 0.546,
+      "backstopHeight_m": 0.0315,
+      "retrievalOpeningHeight_m": 0.09,
+      "retrievalOpeningDepth_m": 0.091,
+      "lowerRingHeight_m": 0.01,
+      "lowerRingHoleDiameter_m": 0.071,
+      "scoringVolume": {
+        "zMin_m": 0.09,
+        "zMax_m": 0.546,
+        "note": "between middle and top rings; zMin approximated by retrieval opening height (CAD Reference 10-4 not machine-readable here)"
+      },
+      "outerRadius_m": 0.075,
+      "source": "Manual 9.7 + CAD flower axis positions"
+    },
+    "hiveGeometryProvenance": {
+      "kind": "derived",
+      "confidence": "medium",
+      "evidence": "CAD tag sticker placements: up-cell tags at z=1.2934, down-cell tags at z=0.8738; rotating the up pose by 60 deg about the pivot axis reproduces the CAD down pose to <1 mm, so each HIVE flips between two states 60 deg apart. Cluster centres placed on the HIVE centreline (Manual 9.9: tag pairs aligned at the centreline).",
+      "aprilTagLayout": "2x2 per cluster, 3.25 in tags, centres at +/-0.0889 m across and +/-0.0508 m along the sticker (estimate; printable sticker PDF dimensions 6.5 in / 7.0 in / 2.75 in not fully resolved)"
+    },
+    "cellCapture": {
+      "upOpeningCenterHeight_m": 1.43,
+      "openingHalfX_m": 0.24,
+      "openingHalfY_m": 0.16,
+      "openingCenterOffsetY_m": 0.36,
+      "provenance": {
+        "kind": "estimate",
+        "confidence": "low",
+        "basis": "derived from 20x14 in opening, 30 deg tilt and CAD up-cell NECTAR rest height 1.273 m"
+      }
+    },
+    "aprilTags": {
+      "family": "36h11",
+      "size_m": 0.08255,
+      "source": "Manual 9.9"
+    }
+  },
+  "scoringElements": {
+    "POLLEN": {
+      "diameter_m": 0.0711,
+      "mass_kg": 0.024,
+      "massSigma_kg": 0.004,
+      "count": 40,
+      "color": "yellow",
+      "part": "am-5851_yellow",
+      "massProvenance": {
+        "kind": "estimate",
+        "confidence": "low",
+        "basis": "2.8 in Gopher ResisDent polyethylene ball; no official mass published"
+      }
+    },
+    "NECTAR": {
+      "diameter_m": 0.0914,
+      "mass_kg": 0.04,
+      "massSigma_kg": 0.006,
+      "countPerAlliance": 8,
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "part": "am-5852",
+      "massProvenance": {
+        "kind": "estimate",
+        "confidence": "low",
+        "basis": "3.6 in ResisDent ball; tip calibration implies ~1.67x POLLEN tip weight"
+      }
+    },
+    "restitution": 0.45,
+    "rollingResistance": 0.02,
+    "sizeVariationNote": "Manual 9.8: not perfectly spherical, may vary in size"
+  },
+  "staging": {
+    "pollen": [
+      {
+        "where": "flower_red_wall",
+        "count": 4
+      },
+      {
+        "where": "flower_rear",
+        "count": 4
+      },
+      {
+        "where": "flower_audience",
+        "count": 4
+      },
+      {
+        "where": "flower_blue_wall",
+        "count": 4
+      },
+      {
+        "where": "garden_red",
+        "positions": [
+          [
+            -1.7596,
+            -1.7596,
+            0.0356
+          ],
+          [
+            -1.6862,
+            -1.7596,
+            0.0356
+          ],
+          [
+            -1.6127,
+            -1.7596,
+            0.0356
+          ],
+          [
+            -1.5393,
+            -1.7596,
+            0.0356
+          ]
+        ]
+      },
+      {
+        "where": "garden_blue",
+        "positions": [
+          [
+            1.7596,
+            1.7596,
+            0.0356
+          ],
+          [
+            1.6862,
+            1.7596,
+            0.0356
+          ],
+          [
+            1.6127,
+            1.7596,
+            0.0356
+          ],
+          [
+            1.5393,
+            1.7596,
+            0.0356
+          ]
+        ]
+      },
+      {
+        "where": "robot_preload",
+        "countPerRobot": 4
+      }
+    ],
+    "nectar": [
+      {
+        "where": "cell",
+        "cell": "red_audience",
+        "alliance": "red",
+        "positions": [
+          [
+            -0.5332,
+            -0.2387,
+            1.273
+          ],
+          [
+            -0.4412,
+            -0.2387,
+            1.273
+          ],
+          [
+            -0.3493,
+            -0.2387,
+            1.273
+          ]
+        ]
+      },
+      {
+        "where": "cell",
+        "cell": "blue_scoring",
+        "alliance": "blue",
+        "positions": [
+          [
+            0.3497,
+            0.235,
+            1.2792
+          ],
+          [
+            0.4417,
+            0.235,
+            1.2792
+          ],
+          [
+            0.5336,
+            0.235,
+            1.2792
+          ]
+        ]
+      },
+      {
+        "where": "alliance_area",
+        "alliance": "red",
+        "count": 5
+      },
+      {
+        "where": "alliance_area",
+        "alliance": "blue",
+        "count": 5
+      }
+    ],
+    "source": "Manual 10.3.1 + CAD element placements"
+  },
+  "points": {
+    "LEAVE": {
+      "auto": 3
+    },
+    "PARK": {
+      "auto": 5,
+      "teleop": 5
+    },
+    "HIVE_TIP": {
+      "auto": 20,
+      "teleop": 20
+    },
+    "CELL_REMAINING": {
+      "end": 2
+    },
+    "BOTTOM_NECTAR_BONUS": {
+      "end": 5
+    },
+    "OWNED_FLOWER_ELEMENT": {
+      "end": 2
+    },
+    "GARDEN_ELEMENT": {
+      "end": 1
+    },
+    "MINOR_FOUL": 5,
+    "MAJOR_FOUL": 20,
+    "source": "Table 10-2, Table 10-4"
+  },
+  "rankingPoints": {
+    "WIN": 3,
+    "TIE": 1,
+    "SWARM": {
+      "metric": "LEAVE+PARK points",
+      "threshold": 16
+    },
+    "POLLINATOR_1": {
+      "metric": "HIVE TIPS",
+      "threshold": 4
+    },
+    "POLLINATOR_2": {
+      "metric": "HIVE TIPS",
+      "threshold": 7
+    },
+    "thresholdProfile": "All Other Events (Table 10-3); Regional/Championship TBA"
+  },
+  "robotRules": {
+    "startingConfiguration_m": [
+      0.4572,
+      0.4572,
+      0.4572
+    ],
+    "expansionLimit_m": [
+      0.4572,
+      0.6096,
+      0.7366
+    ],
+    "maxMotors": 8,
+    "maxServos": 8,
+    "robotController": "exactly 1 programmable ROBOT CONTROLLER: REV Control Hub (REV-31-1595) OR Android phone + REV Expansion Hub (REV-31-1153)",
+    "maxAdditionalExpansionHubs": 1,
+    "mainBattery": "exactly 1 approved 12V NiMH, 20A ATM fuse",
+    "servoLimits": {
+      "servo": {
+        "maxMechPower_W": 8.0,
+        "maxStallCurrent_A": 4.0
+      },
+      "linear": {
+        "maxStallCurrent_A": 1.0
+      },
+      "mechPowerFormula": "0.25 * stallTorque_Nm * noLoadSpeed_rad_s @6V"
+    },
+    "powerRegulatorLoad": {
+      "hubMotorPort": "2 motors per port",
+      "hubServoPort": "2 servos per port"
+    },
+    "source": "R102, R105, R502, R503, R505, R601, R701"
+  },
+  "violations": [
+    {
+      "rule": "G402",
+      "kind": "objective-assisted",
+      "penalty": "MAJOR_FOUL per MATCH",
+      "strategicPenalty": "MAJOR_FOUL + YELLOW per MATCH",
+      "detector": "auto_opponent_side_interference",
+      "description": "During AUTO, controlling elements or contacting an opponent robot on the opposing side"
+    },
+    {
+      "rule": "G403",
+      "kind": "objective",
+      "penalty": "VERBAL_WARNING",
+      "strategicPenalty": "MAJOR_FOUL + YELLOW per MATCH",
+      "detector": "powered_motion_in_transition",
+      "description": "Powered movement between AUTO and TELEOP"
+    },
+    {
+      "rule": "G404",
+      "kind": "objective",
+      "penalty": "VERBAL_WARNING",
+      "strategicPenalty": "MAJOR_FOUL + YELLOW per MATCH",
+      "detector": "powered_motion_after_end",
+      "description": "Powered movement after TELEOP ends"
+    },
+    {
+      "rule": "G405",
+      "kind": "judgment",
+      "penalty": "MAJOR_FOUL per SCORING ELEMENT",
+      "detector": "element_ejected_from_field",
+      "description": "Deliberate ejection of a scoring element from the field"
+    },
+    {
+      "rule": "G407",
+      "kind": "objective-assisted",
+      "penalty": "VERBAL_WARNING",
+      "strategicPenalty": "MAJOR_FOUL + YELLOW per MATCH",
+      "detector": "control_more_than_4",
+      "description": "Controlling more than 4 scoring elements"
+    },
+    {
+      "rule": "G408",
+      "kind": "objective-assisted",
+      "penalty": "VERBAL_WARNING",
+      "strategicPenalty": "YELLOW per MATCH",
+      "detector": "control_opponent_nectar",
+      "description": "Controlling the opponent's NECTAR"
+    },
+    {
+      "rule": "G410",
+      "kind": "objective",
+      "penalty": "MAJOR_FOUL per NECTAR",
+      "detector": "early_flower_nectar",
+      "description": "NECTAR entered into a FLOWER scoring volume before 60 s remain"
+    },
+    {
+      "rule": "G416",
+      "kind": "objective",
+      "penalty": "per manual",
+      "detector": "expansion_limit",
+      "description": "Robot exceeds the 18 x 24 x 29 in expansion volume"
+    },
+    {
+      "rule": "G417",
+      "kind": "judgment",
+      "penalty": "VERBAL_WARNING",
+      "strategicPenalty": "MAJOR_FOUL + YELLOW per MATCH",
+      "detector": "hive_frame_contact",
+      "description": "Manipulating HIVE motion other than by launching"
+    },
+    {
+      "rule": "G421",
+      "kind": "objective-assisted",
+      "penalty": "MAJOR_FOUL per instance + MAJOR_FOUL per 3 s",
+      "detector": "pin_count",
+      "description": "PIN longer than 3 s with the G421 A/B/C end conditions"
+    },
+    {
+      "rule": "G426",
+      "kind": "objective",
+      "penalty": "MINOR_FOUL per NECTAR",
+      "detector": "human_nectar_early",
+      "description": "Human enters NECTAR before it is unlocked by a TIP or the 60 s mark"
+    }
+  ],
+  "officiating": {
+    "MOMENTARY_s": 3.0,
+    "CONTINUOUS_s": 10.0,
+    "strategicModel": "Referee judgment model (GAME_RULES_ENGINE.md): STRATEGIC is never inferred from a single physical contact; it is a configurable, seeded, logged decision driven by REPEATED counts and intent signals (AI intent flag, repetition, speed).",
+    "source": "Manual 10.6"
+  }
+}
