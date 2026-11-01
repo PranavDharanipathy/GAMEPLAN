@@ -1,0 +1,43 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/gameplan_core.dir/core/src/ai.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/ai.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/analysis.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/analysis.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/cad.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/cad.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/electrical.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/electrical.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/experiment.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/experiment.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/json.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/json.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/legality.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/legality.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/link.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/link.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/match.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/match.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/math.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/math.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/recorder.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/recorder.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/robot.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/robot.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/rules.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/rules.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/season.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/season.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/sensors.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/sensors.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/uncertainty.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/uncertainty.cpp.o.d"
+  "CMakeFiles/gameplan_core.dir/core/src/world.cpp.o"
+  "CMakeFiles/gameplan_core.dir/core/src/world.cpp.o.d"
+  "libgameplan_core.a"
+  "libgameplan_core.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/gameplan_core.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

@@ -1,0 +1,12 @@
+{
+  "name": "adversarial-red",
+  "match": "../matches/ai-vs-ai.match.json",
+  "mode": "adversarial",
+  "baseSeed": 7,
+  "objective": "margin.red",
+  "adversarial": {"iterations": 8, "minimize": true, "params": [
+    {"key": "uncertainty.overrides:red1.battery.r0_scale", "min": 0.8, "max": 2.5},
+    {"key": "uncertainty.overrides:red1.drivetrain.slip_velocity_scale", "min": 0.7, "max": 2.0},
+    {"key": "uncertainty.overrides:red1.motors.friction_scale.shooter", "min": 0.8, "max": 3.0}]},
+  "out": "out/experiments/adversarial"
+}

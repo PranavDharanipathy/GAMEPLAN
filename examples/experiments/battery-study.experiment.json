@@ -1,0 +1,14 @@
+{
+  "name": "battery-study",
+  "match": "../matches/ai-vs-ai.match.json",
+  "mode": "stochastic",
+  "trials": 12,
+  "baseSeed": 100,
+  "objective": "margin.red",
+  "variants": [
+    {"name": "fresh-pack", "patch": {"uncertainty.overrides:red1.battery.soc": 0.95}},
+    {"name": "tired-pack", "patch": {"uncertainty.overrides:red1.battery.soc": 0.35, "uncertainty.overrides:red1.battery.r0_scale": 1.8}}
+  ],
+  "limits": {"maxWall_s": 900, "maxStorage_MB": 200, "maxTrials": 200},
+  "out": "out/experiments/battery-study"
+}
