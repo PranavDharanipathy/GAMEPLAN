@@ -74,6 +74,24 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; }
 .bigscore { display: flex; gap: 22px; align-items: baseline; font-family: var(--font-display); font-weight: 700; }
 .bigscore .r { color: var(--red); font-size: 54px; } .bigscore .b { color: var(--blue); font-size: 54px; } .bigscore .vs { color: var(--muted); font-size: 22px; }
 canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-radius: 4px; display: block; }
+/* update bar: top of the screen, only outside live play (never covers a running match) */
+.updbar { position: absolute; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.updbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pollen); flex: none; }
+.updbar .msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.updbar .msg b { font-weight: 600; }
+.updbar .msg span { color: var(--muted); }
+.updbar button { padding: 6px 12px; font-size: 13px; }
+.updbar .x { background: transparent; color: var(--muted); padding: 4px 8px; font-size: 18px; line-height: 1; }
+.updbar .x:hover { color: var(--fg); }
+body.has-updbar .hud, body.has-updbar .conn { top: calc(56px + env(safe-area-inset-top, 0px)); }
+body.has-updbar .sheet { padding-top: 64px; }
+.about { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+.about .ver { font-family: var(--font-mono); color: var(--fg); }
+.about .state.new { color: var(--pollen); }
+.about button { padding: 5px 10px; font-size: 12.5px; }
+.about ul { flex-basis: 100%; margin: 2px 0 0; padding-left: 18px; line-height: 1.5; }
 .assets { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); font-family: var(--font-mono); font-size: 11px; color: var(--muted); pointer-events: none; }
 .tag { font-family: var(--font-mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
 @media (max-width: 520px) { .hud .score { font-size: 28px; } .hud .timer { font-size: 32px; } .keys { display: none; } }
@@ -81,6 +99,12 @@ canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-ra
 </style>
 
 <div id="app">
+  <div class="updbar" id="updBar" role="status" aria-live="polite" hidden>
+    <i class="dot" aria-hidden="true"></i>
+    <div class="msg" id="updMsg"></div>
+    <button type="button" id="updNow">Update now</button>
+    <button type="button" class="x" id="updX" aria-label="Dismiss this update notice">&times;</button>
+  </div>
   <canvas id="view" aria-label="FTC BIOBUZZ field seen from the driver station"></canvas>
   <div class="assets" id="assetState" aria-live="polite"></div>
   <div class="conn" id="conn" hidden><i></i><span id="connText">Connected</span></div>
@@ -121,6 +145,13 @@ canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-ra
       <div class="row">
         <span class="parsed" id="loadState">Loading simulation…</span>
         <button type="submit" id="startBtn" disabled>Start match</button>
+      </div>
+      <div class="about" id="about">
+        <span>GamePlan <span class="ver" id="aboutVer"></span></span>
+        <span class="state" id="aboutState">Update checks need you to be signed in to claude.ai</span>
+        <button type="button" class="ghost" id="aboutCheck">Check for updates</button>
+        <button type="button" id="aboutUpdate" hidden>Update now</button>
+        <ul id="aboutNotes" hidden></ul>
       </div>
     </form>
   </div>

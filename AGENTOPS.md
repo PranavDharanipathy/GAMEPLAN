@@ -39,3 +39,11 @@ statistics, calibrates an AI against its OPR components (≈2 min, local) and wr
 `profiles/teams/<team>.team.json` plus the raw API response. Use it with
 `"controller": "ai", "ai": {"imitate": "profiles/teams/<team>.team.json"}`. Read the profile's
 `calibration.unreachable` before trusting it.
+
+## Releasing (browser app)
+1. Bump `VERSION` and add the newest entry to `RELEASES.json` (version, date, notes, `required`).
+2. `python3 tools/release.py` builds the site and prints the `releases/latest` record.
+3. Publish `build-web/site/index.html` to the same artifact URL (keep the `db` capability declaration).
+4. Write the printed record to the artifact database document `releases/latest`.
+Running copies show an update bar between matches (never during one) with Update now and ×;
+About on the setup screen always offers Check for updates / Update now. `required: true` hides ×.

@@ -1,0 +1,17 @@
+{
+  "schema": "gameplan.releases/1",
+  "note": "Newest first. tools/release.py publishes the first entry as the live 'latest' record that running apps watch.",
+  "releases": [
+    {
+      "version": "0.6.0",
+      "date": "2026-11-01",
+      "required": false,
+      "notes": [
+        "Arena lighting rig over the field; the field sits in a night forest clearing",
+        "Clear polycarbonate refracts; HIVE skins let a little light through",
+        "Official CAD field and perforated POLLEN / NECTAR; balls stay visible inside robots",
+        "Update notices: a bar when a new version is out, and Check for updates under About"
+      ]
+    }
+  ]
+}

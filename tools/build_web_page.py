@@ -10,6 +10,11 @@ page = page.replace("/*SEASON_JSON*/", safe(json.dumps(json.loads(rd("seasons/bi
 page = page.replace("/*COMPONENTS_JSON*/", safe(json.dumps(json.loads(rd("data/hardware/components.json")), separators=(",", ":"))))
 page = page.replace("/*ROBOT_JSON*/", safe(json.dumps(json.loads(rd("examples/robots/generic-launcher.robot.json")), separators=(",", ":"))))
 page = page.replace("/*WASM_LOADER*/", safe(rd("web/gameplan-wasm.js")))
+import datetime, subprocess
+try: commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=root, capture_output=True, text=True).stdout.strip()
+except Exception: commit = ""
+build = {"version": rd("VERSION").strip(), "built": datetime.date.today().isoformat(), "commit": commit}
+page = page.replace("/*BUILD_INFO*/", json.dumps(build))
 page = page.replace("/*TAG_JSON*/", safe(rd("web/apriltag36h11_30_45.json")))
 cc = os.path.join(root, "assets", "field", "cad_colors.json")
 page = page.replace("/*CAD_COLOR_JSON*/", safe(open(cc).read()) if os.path.exists(cc) else "{}")
