@@ -11,3 +11,5 @@ unreal/GamePlan/Saved/
 unreal/GamePlan/DerivedDataCache/
 unreal/GamePlan/Plugins/*/Binaries/
 unreal/GamePlan/Plugins/*/Intermediate/
+build-*/
+unreal/GamePlan/Plugins/*/ThirdParty/*/lib/

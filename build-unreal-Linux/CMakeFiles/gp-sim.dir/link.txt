@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG "CMakeFiles/gp-sim.dir/apps/gpsim/main.cpp.o" -o gp-sim  libgameplan_core.a /usr/lib/x86_64-linux-gnu/libz.so 

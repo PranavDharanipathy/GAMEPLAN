@@ -1,6 +1,0 @@
-/home/user/GAMEPLAN/build-unreal-Linux/CMakeFiles/gameplan_core.dir
-/home/user/GAMEPLAN/build-unreal-Linux/CMakeFiles/gp-sim.dir
-/home/user/GAMEPLAN/build-unreal-Linux/CMakeFiles/gp-tests.dir
-/home/user/GAMEPLAN/build-unreal-Linux/CMakeFiles/test.dir
-/home/user/GAMEPLAN/build-unreal-Linux/CMakeFiles/edit_cache.dir
-/home/user/GAMEPLAN/build-unreal-Linux/CMakeFiles/rebuild_cache.dir
