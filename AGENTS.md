@@ -1,6 +1,8 @@
 # AGENTS.md — rules for every coding agent (and human) working on GamePlan
 
-Read this first, then [AGENTOPS.md](AGENTOPS.md) (how to work), [BUILD_RULES.md](BUILD_RULES.md)
+Read this first, then [AGENTOPS.md](AGENTOPS.md) (how to work), [MERGE.md](MERGE.md) (pull requests,
+branches and merging parallel features into `main` — follow it whenever you open, review or merge a
+PR or branch), [BUILD_RULES.md](BUILD_RULES.md)
 (how to build/test), [IMPLEMENTATION_LEDGER.md](IMPLEMENTATION_LEDGER.md) (what is really done),
 [CONTEXT_STORE.md](CONTEXT_STORE.md) (facts), [DEEP_ANALYSIS.md](DEEP_ANALYSIS.md) (decisions).
 
@@ -61,3 +63,12 @@ Read this first, then [AGENTOPS.md](AGENTOPS.md) (how to work), [BUILD_RULES.md]
 - Java: bridge 11+, shadows compiled `--release 11`, team code `--release 8` (Android parity).
 - SI units internally; field frame documented in `seasons/biobuzz-2027/season.json` (`frame`).
 - New season → new directory `seasons/<id>/`, new rules engine version string.
+
+## Branches and merging
+
+Features are developed in parallel on separate branches (`feat/<name>`), however invasive, and then
+integrated onto `main` by an agent following **[MERGE.md](MERGE.md)**: one feature at a time on an
+`integrate/<date>` branch, collisions resolved by intent (restructuring code where needed so every
+feature actually works), all verification gates green, then a fast-forward of `main`. `main` must always
+build, pass the gates and be releasable. Never commit work in progress directly to `main`.
+

@@ -47,3 +47,8 @@ statistics, calibrates an AI against its OPR components (≈2 min, local) and wr
 4. Write the printed record to the artifact database document `releases/latest`.
 Running copies show an update bar between matches (never during one) with Update now and ×;
 About on the setup screen always offers Check for updates / Update now. `required: true` hides ×.
+
+## Pull requests and merging
+Follow [MERGE.md](MERGE.md): feature brief on every feature branch, integration on `integrate/<date>`,
+verification gates G1–G10, merge report, then fast-forward `main` and delete merged branches.
+
