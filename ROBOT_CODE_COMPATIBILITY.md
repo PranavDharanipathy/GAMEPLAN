@@ -40,3 +40,13 @@ and its libraries through a compatibility runtime.
 
 Success on these projects does not imply universal compatibility; every import produces
 `compatibility.json` for that project.
+
+## Storage (`/sdcard`)
+`AppUtil` (the real one implements an Android lifecycle interface) is shadowed with the same public
+folder constants, built from `Environment.getExternalStorageDirectory()` exactly as the SDK does, plus
+its file/time/diagnostic helpers; UI/dialog/USB methods are deliberately absent (calls fail and are
+reported). `Environment.getExternalStorageDirectory()` is the run's virtual sdcard, so a team log
+written to `/sdcard/FIRST/data/...` appears in the recording as `robot-files/<robot>/sdcard/FIRST/data/...`.
+The SDK's `threetenbp` dependency (via the Android-only `threetenabp`) is provisioned as the plain
+`org.threeten:threetenbp:1.5.1` jar.
+

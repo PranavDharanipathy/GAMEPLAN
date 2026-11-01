@@ -25,7 +25,7 @@ Statuses: Not started · Investigating · Designed · Implementing · Implemente
 | Project importer + compat report | Validated | `Importer.java` | fixture + AthletechBiobuzzV1 | Gradle parsing is regex-based |
 | Kotlin support | Validated | importer | team's 4 `.kt` files compiled | compiler fetched online (bundle for offline) |
 | Source read-only + watch/rebuild | Implemented | importer `--watch` | git clean check | watch mode not covered by tests |
-| Sandbox | Implemented (Linux) | `link.cpp`, `ClassRewriter` | runtime runs under `unshare` | FS confinement + mac/win OS sandbox missing |
+| Sandbox | Implemented (Linux) | `link.cpp`, `ClassRewriter`, `SandboxProbe` fixture | Landlock ABI 7 + private net namespace verified: hostile probe denied home/repo reads, writes outside scratch, TCP; virtual /sdcard writable | mac/win OS sandbox missing |
 | Recording | Validated | `recorder.cpp` | all matches | retention UI missing |
 | Deterministic re-execution | Validated | `match.cpp` | `verify` EXACT (AI and Java runtime) | cross-OS not bit-identical (detected) |
 | Checkpoint/restore (host) | Tested | `World::snapshot/restore` | `checkpoint_restore…` | AI private state not in snapshot |
@@ -63,7 +63,7 @@ AI (XV), experiments with estimates (XVII), sandbox (XX, partial).
 Missing or partial (recorded above, not hidden): Unreal build/validation, driver UI screens, replay
 viewer, CAD tessellation and digital-twin reconstruction from geometry, electrical config editor UI,
 video ingestion/calibration, FTCScout, learning bots, multiplayer, workspaces/versioning UI, robot
-library/consent, installer, OS sandboxes on macOS/Windows and FS confinement, AprilTag clusters.
+library/consent, installer, OS sandboxes on macOS/Windows, AprilTag clusters.
 
 ## Audit 2 — contradictions and architecture
 - Competition AUTO vs practice free-drive: separate `competitionMode`; gamepads zeroed in AUTO in

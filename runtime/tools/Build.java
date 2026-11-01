@@ -24,7 +24,10 @@ import javax.tools.*;
 public class Build {
     static final String CENTRAL = "https://repo1.maven.org/maven2/";
     static final String[] SDK_ARTIFACTS = {"RobotCore", "Hardware", "FtcCommon", "Vision"};
-    static final String[][] SUPPORT = {{"com.google.code.gson", "gson", "2.10.1"}};
+    // Pure-Java runtime dependencies of the SDK. RobotCore's POM pulls com.jakewharton.threetenabp (an
+    // Android AAR) whose payload is org.threeten:threetenbp 1.5.1 (no-tzdb); on the desktop the plain
+    // jar with its bundled tz database is the equivalent (AppUtil's static init needs it).
+    static final String[][] SUPPORT = {{"com.google.code.gson", "gson", "2.10.1"}, {"org.threeten", "threetenbp", "1.5.1"}};
 
     public static void main(String[] args) throws Exception {
         String sdk = "12.0.0";
@@ -87,11 +90,23 @@ public class Build {
         return out;
     }
 
+    // Google's Maven Central mirror serves identical artifacts; used when Central rate-limits (HTTP 429).
+    static final String MIRROR = "https://maven-central.storage-download.googleapis.com/maven2/";
+
     static byte[] fetch(String url) throws Exception {
         HttpClient c = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
-        HttpResponse<byte[]> r = c.send(HttpRequest.newBuilder(URI.create(url)).build(), HttpResponse.BodyHandlers.ofByteArray());
-        if (r.statusCode() != 200) throw new IOException("HTTP " + r.statusCode() + " for " + url);
-        return r.body();
+        IOException last = null;
+        String[] urls = url.startsWith(CENTRAL) ? new String[]{url, MIRROR + url.substring(CENTRAL.length())} : new String[]{url};
+        for (int attempt = 0; attempt < 3; attempt++) {
+            for (String u : urls) {
+                HttpResponse<byte[]> r = c.send(HttpRequest.newBuilder(URI.create(u)).build(), HttpResponse.BodyHandlers.ofByteArray());
+                if (r.statusCode() == 200) return r.body();
+                last = new IOException("HTTP " + r.statusCode() + " for " + u);
+                if (r.statusCode() == 404) break;
+            }
+            Thread.sleep(1000L << attempt);
+        }
+        throw last;
     }
 
     static void verifySha1(byte[] data, String expected, String what) throws Exception {

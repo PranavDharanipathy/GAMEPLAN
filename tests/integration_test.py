@@ -70,5 +70,21 @@ check("post-match report", rp.returncode == 0 and os.path.getsize(os.path.join(r
 cf = run([EXE, "counterfactual", rec, "--at", "60", "--set", "red1.battery.soc=0.35", "--out", os.path.join(OUT, "cf")], timeout=1800)
 check("counterfactual branch with verified prefix", cf.returncode == 0 and "EXACT up to the branch point" in cf.stdout, cf.stdout[-1500:] + cf.stderr[-500:])
 
+# sandbox: hostile robot code cannot read the host, write outside its scratch dir or use the network
+r3 = match("Sandbox Probe", None, "m3")
+check("sandbox probe match", r3.returncode == 0, r3.stderr[-1000:])
+rt3 = json.load(open(os.path.join(OUT, "m3", "result.json")))["runtimes"][0]
+tel = {k.strip(): v.strip() for k, v in (l.split(":", 1) for l in rt3["lastTelemetry"] if ":" in l)}
+den = lambda t, k: t.get(k, "").startswith("denied")
+print("  confinement:", rt3.get("fsConfinement"), tel)
+if sys.platform.startswith("linux") and rt3.get("fsConfinement", "").startswith("landlock"):
+    check("sandbox: host files unreadable", den(tel, "readHome") and den(tel, "readHost"), str(tel))
+    check("sandbox: writes outside scratch denied", den(tel, "writePkg") and den(tel, "writeTmp"), str(tel))
+    check("sandbox: no network", den(tel, "tcp"), str(tel))
+    check("sandbox: virtual /sdcard writable and kept with the recording",
+          tel.get("writeSdcard") == "ALLOWED" and os.path.exists(os.path.join(OUT, "m3", "robot-files", "red1", "sdcard", "FIRST", "data", "probe", "log.txt")), str(tel))
+else:
+    print("  [ SKIP ] OS filesystem confinement checks (not available here: %s)" % rt3.get("fsConfinement"))
+
 print("\n%d failure(s)" % len(fails))
 sys.exit(1 if fails else 0)

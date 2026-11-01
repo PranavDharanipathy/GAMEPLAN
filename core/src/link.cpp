@@ -10,8 +10,14 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+#ifdef __linux__
+#include <sched.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
 #endif
 
 #include "gameplan/world.hpp"
@@ -28,8 +34,9 @@ GamepadState GamepadState::fromVec(const std::vector<double>& v, size_t o) {
 
 // ------------------------------------------------------------------ ChildProcess
 #ifdef _WIN32
+int landlockAbi() { return 0; }
 ChildProcess::~ChildProcess() { kill(); }
-bool ChildProcess::spawn(const std::vector<std::string>& argv, const std::string& workdir, std::string& err) {
+bool ChildProcess::spawn(const std::vector<std::string>& argv, const std::string& workdir, std::string& err, const FsPolicy*) {
     SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
     HANDLE inR, inW, outR, outW, errR, errW;
     if (!CreatePipe(&inR, &inW, &sa, 0) || !CreatePipe(&outR, &outW, &sa, 0) || !CreatePipe(&errR, &errW, &sa, 0)) { err = "CreatePipe failed"; return false; }
@@ -89,10 +96,106 @@ std::string ChildProcess::drainStderr() {
     return s;
 }
 #else
+#ifdef __linux__
+// Landlock (Linux >= 5.13). Constants are defined here because distribution headers often lag the
+// kernel (e.g. no scopes); values are the stable kernel UAPI.
+namespace {
+struct LlRulesetAttr { uint64_t fs, net, scoped; };
+struct __attribute__((packed)) LlPathBeneath { uint64_t allowed; int32_t parentFd; };
+struct LlNetPort { uint64_t allowed, port; };
+constexpr uint32_t LL_CREATE_VERSION = 1u << 0;
+constexpr int LL_RULE_PATH_BENEATH = 1;
+constexpr uint64_t FS_EXECUTE = 1ull << 0, FS_WRITE_FILE = 1ull << 1, FS_READ_FILE = 1ull << 2, FS_READ_DIR = 1ull << 3,
+                   FS_REMOVE_DIR = 1ull << 4, FS_REMOVE_FILE = 1ull << 5, FS_MAKE_CHAR = 1ull << 6, FS_MAKE_DIR = 1ull << 7,
+                   FS_MAKE_REG = 1ull << 8, FS_MAKE_SOCK = 1ull << 9, FS_MAKE_FIFO = 1ull << 10, FS_MAKE_BLOCK = 1ull << 11,
+                   FS_MAKE_SYM = 1ull << 12, FS_REFER = 1ull << 13, FS_TRUNCATE = 1ull << 14, FS_IOCTL_DEV = 1ull << 15;
+constexpr uint64_t NET_BIND_TCP = 1ull << 0, NET_CONNECT_TCP = 1ull << 1;
+constexpr uint64_t SCOPE_ABSTRACT_UNIX = 1ull << 0, SCOPE_SIGNAL = 1ull << 1;
+#ifndef SYS_landlock_create_ruleset
+#define SYS_landlock_create_ruleset 444
+#define SYS_landlock_add_rule 445
+#define SYS_landlock_restrict_self 446
+#endif
+uint64_t fsAllFor(int abi) {
+    uint64_t a = (1ull << 13) - 1;  // ABI 1: EXECUTE..MAKE_SYM
+    if (abi >= 2) a |= FS_REFER;
+    if (abi >= 3) a |= FS_TRUNCATE;
+    if (abi >= 5) a |= FS_IOCTL_DEV;
+    return a;
+}
+// Builds the ruleset in the parent (no effect until a process restricts itself with it).
+int buildRuleset(const FsPolicy& p, int abi, std::string& err) {
+    LlRulesetAttr attr{fsAllFor(abi), 0, 0};
+    size_t sz = sizeof(uint64_t);
+    if (abi >= 4 && p.denyTcp) { attr.net = NET_BIND_TCP | NET_CONNECT_TCP; sz = 2 * sizeof(uint64_t); }
+    if (abi >= 6) { attr.scoped = SCOPE_ABSTRACT_UNIX | (p.scopeSignals ? SCOPE_SIGNAL : 0); sz = sizeof(attr); }
+    if (abi >= 4 && !p.denyTcp && abi < 6) sz = 2 * sizeof(uint64_t);
+    int fd = int(syscall(SYS_landlock_create_ruleset, &attr, sz, 0));
+    if (fd < 0) { err = std::string("landlock_create_ruleset: ") + std::strerror(errno); return -1; }
+    const uint64_t all = fsAllFor(abi);
+    const uint64_t fileRights = FS_EXECUTE | FS_WRITE_FILE | FS_READ_FILE | (abi >= 3 ? FS_TRUNCATE : 0) | (abi >= 5 ? FS_IOCTL_DEV : 0);
+    auto add = [&](const std::string& path, uint64_t allowed, bool required) -> bool {
+        int pfd = open(path.c_str(), O_PATH | O_CLOEXEC);
+        if (pfd < 0) {
+            if (!required) return true;  // optional system dirs (e.g. /lib64) may not exist
+            err = "landlock: cannot open " + path + ": " + std::strerror(errno);
+            return false;
+        }
+        struct stat st{};
+        if (fstat(pfd, &st) == 0 && !S_ISDIR(st.st_mode)) allowed &= fileRights;
+        LlPathBeneath pb{allowed & all, pfd};
+        int r = int(syscall(SYS_landlock_add_rule, fd, LL_RULE_PATH_BENEATH, &pb, 0));
+        int e = errno;
+        close(pfd);
+        if (r != 0) { err = "landlock_add_rule " + path + ": " + std::strerror(e); return false; }
+        return true;
+    };
+    const uint64_t ro = FS_EXECUTE | FS_READ_FILE | FS_READ_DIR;
+    bool ok = true;
+    for (auto& d : p.readDirs) ok = ok && add(d, ro, false);
+    for (auto& f : p.readFiles) ok = ok && add(f, FS_READ_FILE, true);
+    for (auto& d : p.devFiles) ok = ok && add(d, FS_READ_FILE | FS_WRITE_FILE | (abi >= 5 ? FS_IOCTL_DEV : 0), false);
+    for (auto& d : p.writeDirs) ok = ok && add(d, all & ~(FS_MAKE_CHAR | FS_MAKE_BLOCK | FS_IOCTL_DEV), true);
+    if (!ok) { close(fd); return -1; }
+    return fd;
+}
+void writeStr(int fd, const char* s) { ssize_t n = write(fd, s, std::strlen(s)); (void)n; }
+bool writeFileAll(const char* path, const std::string& text) {
+    int fd = open(path, O_WRONLY | O_CLOEXEC);
+    if (fd < 0) return false;
+    bool ok = write(fd, text.data(), text.size()) == ssize_t(text.size());
+    close(fd);
+    return ok;
+}
+}  // namespace
+
+int landlockAbi() {
+    long v = syscall(SYS_landlock_create_ruleset, nullptr, 0, LL_CREATE_VERSION);
+    return v < 0 ? 0 : int(v);
+}
+#else
+int landlockAbi() { return 0; }
+#endif
+
 ChildProcess::~ChildProcess() { kill(); }
-bool ChildProcess::spawn(const std::vector<std::string>& argv, const std::string& workdir, std::string& err) {
+bool ChildProcess::spawn(const std::vector<std::string>& argv, const std::string& workdir, std::string& err, const FsPolicy* policy) {
     int in[2], out[2], er[2];
     if (pipe(in) || pipe(out) || pipe(er)) { err = "pipe() failed"; return false; }
+    int ruleset = -1, abi = 0;
+    int st[2] = {-1, -1};   // child -> parent confinement status, closed by exec (CLOEXEC)
+#ifdef __linux__
+    std::string uidMap, gidMap;
+    if (policy) {
+        abi = landlockAbi();
+        if (abi > 0) {
+            ruleset = buildRuleset(*policy, abi, err);
+            if (ruleset < 0) { close(in[0]); close(in[1]); close(out[0]); close(out[1]); close(er[0]); close(er[1]); return false; }
+        }
+        uidMap = std::to_string(getuid()) + " " + std::to_string(getuid()) + " 1\n";
+        gidMap = std::to_string(getgid()) + " " + std::to_string(getgid()) + " 1\n";
+        if (pipe2(st, O_CLOEXEC) != 0) st[0] = st[1] = -1;
+    }
+#endif
     pid_t pid = fork();
     if (pid < 0) { err = "fork() failed"; return false; }
     if (pid == 0) {
@@ -100,6 +203,29 @@ bool ChildProcess::spawn(const std::vector<std::string>& argv, const std::string
         close(in[0]); close(in[1]); close(out[0]); close(out[1]); close(er[0]); close(er[1]);
         if (!workdir.empty() && chdir(workdir.c_str()) != 0) _exit(126);
         setpgid(0, 0);  // own process group: stop kills every thread/child of the runtime
+#ifdef __linux__
+        if (policy) {
+            if (st[0] >= 0) close(st[0]);
+            // Private network namespace (no interfaces but loopback, which stays down) via an
+            // unprivileged user namespace that maps only our own uid/gid.
+            if (unshare(CLONE_NEWUSER | CLONE_NEWNET) == 0) {
+                writeFileAll("/proc/self/setgroups", "deny");
+                bool m = writeFileAll("/proc/self/uid_map", uidMap) && writeFileAll("/proc/self/gid_map", gidMap);
+                if (st[1] >= 0) writeStr(st[1], m ? "N" : "n");
+            } else if (st[1] >= 0) {
+                writeStr(st[1], "n");
+            }
+            if (ruleset >= 0) {
+                if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 || syscall(SYS_landlock_restrict_self, ruleset, 0) != 0) {
+                    if (st[1] >= 0) writeStr(st[1], "E");
+                    writeStr(2, "gameplan: Landlock confinement failed; refusing to run robot code unconfined\n");
+                    _exit(125);
+                }
+                close(ruleset);
+                if (st[1] >= 0) writeStr(st[1], "L");
+            }
+        }
+#endif
         std::vector<char*> a;
         for (auto& s : argv) a.push_back(const_cast<char*>(s.c_str()));
         a.push_back(nullptr);
@@ -107,6 +233,22 @@ bool ChildProcess::spawn(const std::vector<std::string>& argv, const std::string
         _exit(127);
     }
     close(in[0]); close(out[1]); close(er[1]);
+    confinement_.clear();
+#ifdef __linux__
+    if (ruleset >= 0) close(ruleset);
+    if (st[1] >= 0) {
+        close(st[1]);
+        char b[8]; std::string got;
+        ssize_t r;
+        while ((r = read(st[0], b, sizeof b)) > 0) got.append(b, size_t(r));
+        close(st[0]);
+        bool net = got.find('N') != std::string::npos;
+        if (got.find('E') != std::string::npos) { err = "Landlock confinement failed in the runtime process"; return false; }
+        confinement_ = got.find('L') != std::string::npos ? "landlock-abi" + std::to_string(abi) : std::string("unavailable (kernel has no Landlock)");
+        confinement_ += net ? ", private network namespace" : ", no network namespace (user namespaces disabled)";
+        if (abi >= 4) confinement_ += ", TCP denied";
+    }
+#endif
     pid_ = pid; inFd_ = in[1]; outFd_ = out[0]; errFd_ = er[0];
     fcntl(errFd_, F_SETFL, fcntl(errFd_, F_GETFL) | O_NONBLOCK);
     signal(SIGPIPE, SIG_IGN);
@@ -265,23 +407,76 @@ bool RuntimeLink::readFrame(uint8_t& type, std::string& payload, std::string& er
 
 bool RuntimeLink::start(std::string& err) {
     std::vector<std::string> argv;
-#ifdef __linux__
-    if (cfg_.sandbox && access("/usr/bin/unshare", X_OK) == 0) {
-        // no network namespace access for robot code; user namespace so no privilege is needed
-        argv = {"/usr/bin/unshare", "--user", "--map-root-user", "--net", "--"};
+    if (cfg_.scratchDir.empty()) {
+#ifdef _WIN32
+        char tmp[MAX_PATH]; GetTempPathA(MAX_PATH, tmp);
+        cfg_.scratchDir = std::string(tmp) + "gameplan-rt-" + std::to_string(GetCurrentProcessId()) + "-" + std::to_string(robot_);
+#else
+        const char* td = getenv("TMPDIR");
+        std::string tmpl = std::string(td && *td ? td : "/tmp") + "/gameplan-rt-XXXXXX";
+        std::vector<char> b(tmpl.begin(), tmpl.end()); b.push_back(0);
+        if (!mkdtemp(b.data())) { err = "cannot create runtime scratch directory"; return false; }
+        cfg_.scratchDir = b.data();
+#endif
+    }
+    makeDirs(cfg_.scratchDir + "/sdcard");
+    makeDirs(cfg_.scratchDir + "/tmp");
+    {   // absolute: the JVM runs with the package directory as its working directory
+#ifdef _WIN32
+        char full[MAX_PATH];
+        if (_fullpath(full, cfg_.scratchDir.c_str(), MAX_PATH)) cfg_.scratchDir = full;
+#else
+        char* r = realpath(cfg_.scratchDir.c_str(), nullptr);
+        if (r) { cfg_.scratchDir = r; free(r); }
+#endif
+    }
+    std::string java = cfg_.java;
+    FsPolicy pol;
+#ifndef _WIN32
+    if (java.find('/') == std::string::npos) {  // resolve through PATH so the JDK directory can be allowed
+        const char* path = getenv("PATH");
+        std::string ps = path ? path : "/usr/bin:/bin";
+        size_t a = 0;
+        while (a <= ps.size()) {
+            size_t b2 = ps.find(':', a); if (b2 == std::string::npos) b2 = ps.size();
+            std::string c = ps.substr(a, b2 - a) + "/" + java;
+            if (access(c.c_str(), X_OK) == 0) { java = c; break; }
+            a = b2 + 1;
+        }
+    }
+    if (cfg_.sandbox) {
+        auto real = [](const std::string& p) { char* r = realpath(p.c_str(), nullptr); std::string s2 = r ? r : p; free(r); return s2; };
+        auto parent = [](const std::string& p) { size_t k = p.find_last_of('/'); return k == std::string::npos || k == 0 ? std::string("/") : p.substr(0, k); };
+        std::string javaHome = parent(parent(real(java)));   // <home>/bin/java
+        pol.readDirs = {"/usr", "/lib", "/lib64", "/lib32", "/bin", "/etc", "/proc", "/sys", javaHome,
+                        real(parent(cfg_.runtimeJar)), real(cfg_.packageDir)};
+        pol.devFiles = {"/dev/null", "/dev/zero", "/dev/urandom", "/dev/random"};
+        pol.writeDirs = {real(cfg_.scratchDir)};
+        if (!cfg_.timingProfile.empty()) pol.readFiles.push_back(real(cfg_.timingProfile));
+        Json pkg = Json::parse(readTextFile(cfg_.packageDir + "/package.json"));
+        for (const char* k : {"shadow", "sdk", "libs"})
+            for (size_t i = 0; i < pkg["classpath"][k].size(); ++i) {
+                std::string jp = pkg["classpath"][k][i].str();
+                if (!jp.empty() && jp[0] != '/') jp = cfg_.packageDir + "/" + jp;
+                pol.readFiles.push_back(real(jp));
+            }
     }
 #endif
-    argv.push_back(cfg_.java);
+    argv.push_back(java);
     argv.push_back("-Xss4m");
     argv.push_back("-Xmx768m");
     argv.push_back("-XX:+UseSerialGC");
+    argv.push_back("-XX:-UsePerfData");    // no /tmp/hsperfdata: the robot JVM writes only its scratch dir
     argv.push_back("-Djava.awt.headless=true");
+    argv.push_back("-Djava.io.tmpdir=" + cfg_.scratchDir + "/tmp");
+    argv.push_back("-Dgameplan.sdcard=" + cfg_.scratchDir + "/sdcard");
     argv.push_back("-cp");
     argv.push_back(cfg_.runtimeJar);
     argv.push_back("org.gameplan.runtime.RuntimeMain");
     argv.push_back("--package");
     argv.push_back(cfg_.packageDir);
-    if (!proc_.spawn(argv, cfg_.packageDir, err)) return false;
+    if (!proc_.spawn(argv, cfg_.packageDir, err, cfg_.sandbox ? &pol : nullptr)) return false;
+    fsConfinement_ = cfg_.sandbox ? (proc_.confinement().empty() ? std::string("unavailable on this OS") : proc_.confinement()) : "disabled";
     alive_ = true;
     Json init = Json::object();
     init.set("protocol", 1);
@@ -291,6 +486,7 @@ bool RuntimeLink::start(std::string& err) {
     init.set("seed", double(w_.config().seed + uint64_t(robot_) * 7919));
     init.set("robot", w_.robots()[robot_].robot->label);
     init.set("sandbox", cfg_.sandbox);
+    init.set("fsConfinement", fsConfinement_);
     if (!sendFrame(1, init.dump())) { err = "failed to write INIT"; return false; }
     uint8_t type;
     std::string payload;

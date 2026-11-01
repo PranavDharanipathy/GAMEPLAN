@@ -29,10 +29,27 @@ enum GamepadButton : uint32_t {
     BTN_START = 1u << 11, BTN_GUIDE = 1u << 12, BTN_LSTICK = 1u << 13, BTN_RSTICK = 1u << 14, BTN_TOUCHPAD = 1u << 15
 };
 
+// OS-level confinement applied to the child before exec (Linux: Landlock; SECURITY.md).
+// Paths not listed are inaccessible to the child (open() fails with EACCES).
+struct FsPolicy {
+    std::vector<std::string> readDirs;    // read + execute, recursive
+    std::vector<std::string> readFiles;   // read single files (jars)
+    std::vector<std::string> writeDirs;   // full read/write, recursive (scratch only)
+    std::vector<std::string> devFiles;    // read/write character devices (/dev/null, ...)
+    bool denyTcp = true;                  // Landlock ABI >= 4: no TCP bind/connect
+    bool scopeSignals = true;             // Landlock ABI >= 6: cannot signal processes outside its domain
+};
+
+// Landlock ABI the running kernel supports (0 = unavailable / not Linux).
+int landlockAbi();
+
 class ChildProcess {
 public:
     ~ChildProcess();
-    bool spawn(const std::vector<std::string>& argv, const std::string& workdir, std::string& err);
+    // If policy is given and the kernel supports Landlock, the child confines itself before exec and
+    // exits with code 125 if confinement fails (fail closed).
+    bool spawn(const std::vector<std::string>& argv, const std::string& workdir, std::string& err,
+               const FsPolicy* policy = nullptr);
     bool writeAll(const void* data, size_t n);
     // Reads exactly n bytes; returns false on EOF/timeout.
     bool readAll(void* data, size_t n, double timeoutS);
@@ -40,6 +57,7 @@ public:
     void kill();
     int exitCode() const { return exitCode_; }
     std::string drainStderr();
+    const std::string& confinement() const { return confinement_; }
 
 private:
 #ifdef _WIN32
@@ -51,6 +69,7 @@ private:
     int pid_ = -1, inFd_ = -1, outFd_ = -1, errFd_ = -1;
 #endif
     int exitCode_ = -1;
+    std::string confinement_;
 };
 
 struct RuntimeConfig {
@@ -62,6 +81,9 @@ struct RuntimeConfig {
     bool sandbox = true;
     double watchdogS = 30.0;         // wall-clock limit for one lockstep exchange
     std::string logDir;
+    // Only directory the robot code may write: holds its virtual /sdcard (AppUtil.ROOT_FOLDER etc.)
+    // and java.io.tmpdir. Defaults to a fresh temporary directory.
+    std::string scratchDir;
 };
 
 struct TelemetryFrame { double t; std::vector<std::string> lines; };
@@ -92,6 +114,9 @@ public:
     bool deterministic() const { return deterministic_; }
     std::string opModeState() const { return opModeState_; }
     double lastLoopHz() const { return lastLoopHz_; }
+    // "landlock-abiN" / "unavailable (...)" / "disabled": what OS confinement the runtime got.
+    const std::string& fsConfinement() const { return fsConfinement_; }
+    const std::string& scratchDir() const { return cfg_.scratchDir; }
 
 private:
     bool readFrame(uint8_t& type, std::string& payload, std::string& err);
@@ -118,6 +143,7 @@ private:
     uint16_t motorBase_ = 0, servoBase_ = 0, sensorBase_ = 0, hubBase_ = 0;
     double lastLoopHz_ = 0;
     std::string lastVisionKey_;
+    std::string fsConfinement_ = "disabled";
     std::vector<double> lastInput_;
 };
 

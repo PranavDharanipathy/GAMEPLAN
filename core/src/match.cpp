@@ -280,8 +280,16 @@ bool MatchRunner::begin(std::string& err) {
         if (re.controller != "runtime") continue;
         RuntimeConfig rc = setup_.runtime;
         rc.packageDir = re.packageDir;
+        // Files the robot code writes (its virtual /sdcard, e.g. FIRST/data logs) are kept with the recording.
+        if (recorder_) rc.scratchDir = recorder_->dir() + "/robot-files/" + re.label;
         links_[i].reset(new RuntimeLink(*world_, int(i), rc, recorder_.get()));
         if (!links_[i]->start(err)) { err = re.label + ": " + err; return false; }
+        if (recorder_) {
+            Json d = Json::object();
+            d.set("fsConfinement", links_[i]->fsConfinement());
+            d.set("scratchDir", links_[i]->scratchDir());
+            recorder_->event(0.0, "runtime_sandbox", int(i), d);
+        }
         if (!re.gamepadScript.empty()) { scripts_[i] = ScriptedGamepad::load(re.gamepadScript); hasScript_[i] = true; }
         if (replay_.count(int(i))) {
             ScriptedGamepad* sg = &replay_[int(i)];
@@ -454,6 +462,7 @@ Json MatchRunner::finish() {
         Json o = Json::object();
         o.set("robot", int(i));
         o.set("deterministic", links_[i]->deterministic());
+        o.set("fsConfinement", links_[i]->fsConfinement());
         o.set("hwStats", links_[i]->hwStats());
         Json st = Json::array();
         for (auto& s : links_[i]->statusLog()) st.push(s);
