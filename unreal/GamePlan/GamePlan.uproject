@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.4",
+  "Category": "Simulation",
+  "Description": "GamePlan FTC simulator - rendered host for the GamePlan simulation core",
+  "Modules": [{"Name": "GamePlan", "Type": "Runtime", "LoadingPhase": "Default"}],
+  "Plugins": [
+    {"Name": "GamePlanSim", "Enabled": true},
+    {"Name": "EnhancedInput", "Enabled": true},
+    {"Name": "DatasmithImporter", "Enabled": true, "Optional": true}
+  ],
+  "TargetPlatforms": ["Windows", "Linux", "Mac"]
+}

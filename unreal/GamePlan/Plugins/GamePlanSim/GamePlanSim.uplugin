@@ -1,0 +1,11 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "GamePlan Simulation",
+  "Description": "Embeds the GamePlan simulation core (physics, electrical, rules, FTC runtime link) and renders it: field, robots, scoring elements, driver-station camera, live gamepads, match HUD, replay.",
+  "Category": "Simulation",
+  "CanContainContent": true,
+  "Modules": [{"Name": "GamePlanSim", "Type": "Runtime", "LoadingPhase": "Default", "PlatformAllowList": ["Win64", "Linux", "Mac"]}],
+  "Plugins": [{"Name": "EnhancedInput", "Enabled": true}]
+}
