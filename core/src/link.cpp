@@ -246,6 +246,9 @@ bool RuntimeLink::sendFrame(uint8_t type, const std::string& payload) {
 bool RuntimeLink::readFrame(uint8_t& type, std::string& payload, std::string& err) {
     uint32_t len = 0;
     if (!proc_.readAll(&len, 4, cfg_.watchdogS)) {
+#ifndef _WIN32
+        usleep(50000);
+#endif
         err = proc_.alive() ? "runtime watchdog: no response within " + std::to_string(cfg_.watchdogS) + " s (robot code stuck outside SDK calls?)"
                             : "runtime process exited";
         std::string se = proc_.drainStderr();
@@ -315,6 +318,7 @@ bool RuntimeLink::exchange(double t, std::string& err) {
     if (inputAllowed_) flags |= 4;
     o.put<uint8_t>(flags);
     GamepadState z;
+    if (replayInputs) replayInputs(t, gp1_, gp2_);
     for (const GamepadState* g : {&gp1_, &gp2_}) {
         const GamepadState& gg = inputAllowed_ ? *g : z;
         for (float f : {gg.lx, gg.ly, gg.rx, gg.ry, gg.lt, gg.rt}) o.put<float>(f);
@@ -419,7 +423,14 @@ void RuntimeLink::applyDueCommands(double t) {
             auto& p = r.ports[c.dev - motorBase_];
             switch (c.field) {
                 case 1: p.power = c.value; p.velocityCommand = false; break;
-                case 2: { RunMode nm = RunMode(int(c.value)); if (nm != p.mode) { p.integ = 0; } p.mode = nm; break; }
+                case 2: {
+                    RunMode nm = RunMode(int(c.value));
+                    if (nm != p.mode) p.integ = 0;
+                    // the hub resets the encoder count on receipt of STOP_AND_RESET_ENCODER
+                    if (nm == RunMode::StopAndResetEncoder) p.encoderOffset = (long long)std::llround(r.encoderTicks(int(c.dev - motorBase_)));
+                    p.mode = nm;
+                    break;
+                }
                 case 3: p.targetPosition = int(c.value); break;
                 case 4: p.targetVelocity = c.value; p.velocityCommand = true; break;
                 case 5: p.brake = c.value != 0; break;

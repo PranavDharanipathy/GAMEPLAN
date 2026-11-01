@@ -5,6 +5,7 @@
 #pragma once
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -76,6 +77,8 @@ public:
     void startOpMode() { pendingControl_ = 2; }
     void stopOpMode() { pendingControl_ = 3; }
     void setGamepads(const GamepadState& g1, const GamepadState& g2, bool allowed) { gp1_ = g1; gp2_ = g2; inputAllowed_ = allowed; }
+    // Deterministic re-execution: gamepad state is taken from the recorded timeline at the exact exchange time.
+    std::function<void(double, GamepadState&, GamepadState&)> replayInputs;
     // Lockstep: target time the runtime is waiting for (after exchange()).
     double target() const { return target_; }
     bool exchange(double t, std::string& err);  // send STATE(t), read until SYNC; applies nothing yet

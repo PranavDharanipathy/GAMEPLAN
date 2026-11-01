@@ -218,7 +218,7 @@ void AIController::drive(World& w, int self, Vec2 goal, double goalHeading, doub
     double lf = vx - vy - wCmd * 0.6, rf = vx + vy + wCmd * 0.6, lb = vx + vy - wCmd * 0.6, rb = vx - vy + wCmd * 0.6;
     double mx = std::max({1.0, std::fabs(lf), std::fabs(rf), std::fabs(lb), std::fabs(rb)});
     double v[4] = {lf / mx, rf / mx, lb / mx, rb / mx};
-    for (int k = 0; k < 4; ++k) if (idx[k] >= 0) { r.ports[idx[k]].mode = RunMode::RunWithoutEncoder; r.ports[idx[k]].power = v[k]; }
+    for (int k = 0; k < 4; ++k) if (idx[k] >= 0) { r.ports[idx[k]].mode = RunMode::RunWithoutEncoder; r.ports[idx[k]].power = v[k] * r.motorSign[idx[k]]; }
 }
 
 void AIController::setMechanisms(World& w, int self, double t) {

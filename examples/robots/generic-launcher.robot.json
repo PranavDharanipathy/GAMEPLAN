@@ -20,9 +20,9 @@
   ],
   "motors": [
     {"name": "lf", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 0, "lead": {"awg": "18AWG", "length_m": 0.45}},
-    {"name": "rf", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 1, "lead": {"awg": "18AWG", "length_m": 0.45}},
+    {"name": "rf", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 1, "mirrored": true, "lead": {"awg": "18AWG", "length_m": 0.45}},
     {"name": "lb", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 2, "lead": {"awg": "18AWG", "length_m": 0.45}},
-    {"name": "rb", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 3, "lead": {"awg": "18AWG", "length_m": 0.45}},
+    {"name": "rb", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-19.2", "hub": "control", "port": 3, "mirrored": true, "lead": {"awg": "18AWG", "length_m": 0.45}},
     {"name": "intake", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-5.2", "hub": "expansion", "port": 0, "lead": {"awg": "18AWG", "length_m": 0.4}},
     {"name": "shooter", "component": "gobilda-5203-bare", "gearbox": "gobilda-yj-1", "hub": "expansion", "port": 1, "lead": {"awg": "18AWG", "length_m": 0.4}}
   ],

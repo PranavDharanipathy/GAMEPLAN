@@ -1,0 +1,13 @@
+{
+  "description": "Scripted driver input (match time in seconds). Used for headless TeleOp tests; live play uses physical gamepads.",
+  "events": [
+    
+    {"t": 39.0, "gamepad": 1, "set": {"ly": -0.8, "rt": 1.0}},
+    {"t": 41.0, "gamepad": 1, "set": {"ly": 0.0, "rx": 0.5}},
+    {"t": 42.0, "gamepad": 1, "set": {"rx": 0.0, "lx": 0.7}},
+    {"t": 43.5, "gamepad": 1, "set": {"lx": 0.0, "right_bumper": true}},
+    {"t": 46.0, "gamepad": 1, "set": {"a": true}},
+    {"t": 47.0, "gamepad": 1, "set": {"a": false, "right_bumper": false, "ly": 0.6}},
+    {"t": 49.0, "gamepad": 1, "set": {"ly": 0.0, "rt": 0.0}}
+  ]
+}

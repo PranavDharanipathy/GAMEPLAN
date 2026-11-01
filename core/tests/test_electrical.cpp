@@ -30,7 +30,7 @@ TEST(motor_spec_derivation_matches_datasheet) {
 
 TEST(drivetrain_reaches_plausible_top_speed) {
     Robot r = makeRobot();
-    for (auto& p : r.ports) p.power = 1.0;
+    for (size_t k = 0; k < r.ports.size(); ++k) r.ports[k].power = r.motorSign[k];
     // left side reversed in hardware convention? (our joints: all +power -> forward). Run 2.5 s.
     double dt = 0.0005;
     for (int i = 0; i < 5000; ++i) r.step(dt, i * dt, 1.0);
@@ -46,7 +46,7 @@ TEST(drivetrain_reaches_plausible_top_speed) {
 TEST(strafe_right_moves_negative_y) {
     Robot r = makeRobot();
     int lf = r.motorIndex("lf"), rf = r.motorIndex("rf"), lb = r.motorIndex("lb"), rb = r.motorIndex("rb");
-    r.ports[lf].power = 1; r.ports[rf].power = -1; r.ports[lb].power = -1; r.ports[rb].power = 1;
+    r.ports[lf].power = 1; r.ports[rf].power = 1; r.ports[lb].power = -1; r.ports[rb].power = -1;  // rf/rb mirrored
     double dt = 0.0005;
     for (int i = 0; i < 3000; ++i) r.step(dt, i * dt, 1.0);
     CHECK_LT(r.vel.y, -0.5);
@@ -58,7 +58,7 @@ TEST(acceleration_draws_current_and_sags_battery) {
     double dt = 0.0005;
     r.step(dt, 0, 1.0);
     double vIdle = r.elec.battery.st.vTerm;
-    for (auto& p : r.ports) p.power = 1.0;
+    for (size_t k = 0; k < r.ports.size(); ++k) r.ports[k].power = r.motorSign[k];
     double minV = 99, maxI = 0;
     for (int i = 0; i < 400; ++i) {
         r.step(dt, i * dt, 1.0);
@@ -74,7 +74,7 @@ TEST(intake_load_reduces_drive_voltage_and_acceleration) {
     // must lower hub bus voltage and therefore drivetrain acceleration (coupling, no ad-hoc rule).
     auto run = [](bool loadOn) {
         Robot r = makeRobot();
-        for (int k = 0; k < 4; ++k) r.ports[k].power = 1.0;
+        for (int k = 0; k < 4; ++k) r.ports[k].power = r.motorSign[k];
         int in = r.motorIndex("intake"), sh = r.motorIndex("shooter");
         if (loadOn) { r.ports[in].power = 1.0; r.ports[sh].power = 1.0; }
         double dt = 0.0005, x = 0;

@@ -135,6 +135,7 @@ public:
     std::vector<PortController> ports;     // one per motor
     std::vector<std::string> motorNames;
     std::vector<int> motorJoint;           // joint index per motor
+    std::vector<double> motorSign;         // -1 when the motor is mounted mirrored (e.g. right-side drive motors)
     std::vector<std::string> servoNames;
     std::vector<Mechanism> mechs;
     std::vector<SensorDef> sensors;

@@ -258,6 +258,8 @@ void Recorder::input(int robot, double t, const std::vector<double>& g1, const s
 
 void Recorder::finish(const World& w, const Json& extra) {
     frames_.close();
+    if (hashes_) { std::fclose(hashes_); hashes_ = nullptr; }
+    if (events_) { std::fflush(events_); }
     for (auto& t : robotTables_) t->close();
     for (auto& t : loopTables_) t->close();
     for (auto& t : obsTables_) t->close();

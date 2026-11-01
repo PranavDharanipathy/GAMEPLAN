@@ -333,7 +333,7 @@ Json runStressTests(const std::string& robotPath, const std::string& compPath, c
     struct Scenario { std::string name; double dur; std::function<void(Robot&, double)> act; };
     auto mechMotor = [&](Robot& r, MechType t) { for (auto& m : r.mechs) if (m.type == t && m.joint >= 0) return r.joints[m.joint].motor; return -1; };
     std::vector<Scenario> sc = {
-        {"all drivetrain motors full from rest", 1.5, [&](Robot& r, double) { for (int m : drive) r.ports[m].power = 1; }},
+        {"all drivetrain motors full from rest", 1.5, [&](Robot& r, double) { for (int m : drive) r.ports[m].power = r.motorSign[m]; }},
         {"accelerate while running intake", 1.5, [&](Robot& r, double) { for (int m : drive) r.ports[m].power = 1; int i = mechMotor(r, MechType::Intake); if (i >= 0) r.ports[i].power = 1; }},
         {"accelerate + intake stalled + flywheel spin-up", 1.5, [&](Robot& r, double) {
              for (int m : drive) r.ports[m].power = 1;

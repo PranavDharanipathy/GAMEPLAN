@@ -1,6 +1,7 @@
 // Match orchestration shared by the headless CLI, batch experiments, counterfactual branches
 // and the Unreal host. Owns the World, the FTC runtime links, AI controllers and the recorder.
 #pragma once
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -67,7 +68,7 @@ public:
     Recorder* recorder() { return recorder_.get(); }
     RuntimeLink* link(int robot);
     void setLiveGamepads(int robot, const GamepadState& g1, const GamepadState& g2);
-    void setReplayInputs(int robot, const ScriptedGamepad& s) { scripts_[robot] = s; hasScript_[robot] = true; }
+    void setReplayInputs(int robot, const ScriptedGamepad& s) { replay_[robot] = s; }   // call before begin()
     void schedule(double matchTime, const std::vector<ParamChange>& changes) { branchT_ = matchTime; branch_ = changes; }
     bool done() const { return done_; }
     std::vector<std::string> warnings;
@@ -82,6 +83,7 @@ private:
     std::unique_ptr<Recorder> recorder_;
     std::vector<std::unique_ptr<RuntimeLink>> links_;   // index = robot (nullptr if not runtime)
     std::vector<ScriptedGamepad> scripts_;
+    std::map<int, ScriptedGamepad> replay_;
     std::vector<bool> hasScript_, hasLive_;
     std::vector<std::pair<GamepadState, GamepadState>> live_;
     struct Sched { double t; int robot; int action; std::string name; bool done; };

@@ -218,6 +218,7 @@ void Robot::build(const Components& comps, UncertaintySampler& us, const std::st
         j.engaged = j.backlash > 0 ? 0 : 1;
         joints.push_back(j);
         motorJoint.push_back(int(joints.size()) - 1);
+        motorSign.push_back(md["mirrored"].boolean(false) ? -1.0 : 1.0);
         PortController pc;
         pc.ticksPerRev = mu.spec.encoderCPR * mu.gear.ratio;
         pc.maxTicksPerSec = mu.spec.freeRpm / 60.0 / mu.gear.ratio * pc.ticksPerRev * 0.85;
@@ -347,12 +348,12 @@ OBB2 Robot::footprint() const {
 double Robot::encoderTicks(int m) const {
     const auto& j = joints[motorJoint[m]];
     const auto& mu = elec.motors[m];
-    return j.thetam * j.ratio * mu.spec.encoderCPR / (2 * kPi);
+    return motorSign[m] * j.thetam * j.ratio * mu.spec.encoderCPR / (2 * kPi);
 }
 double Robot::encoderVelocity(int m) const {
     const auto& j = joints[motorJoint[m]];
     const auto& mu = elec.motors[m];
-    return j.wm * j.ratio * mu.spec.encoderCPR / (2 * kPi);
+    return motorSign[m] * j.wm * j.ratio * mu.spec.encoderCPR / (2 * kPi);
 }
 double Robot::surfaceSpeed(int mech) const {
     const auto& m = mechs[mech];
@@ -390,7 +391,7 @@ void Robot::step(double dt, double t, double muScale) {
     }
     // 2) Electrical network at present motor speeds
     std::vector<double> wMotor(elec.motors.size());
-    for (size_t i = 0; i < elec.motors.size(); ++i) wMotor[i] = joints[motorJoint[i]].motorOmega();
+    for (size_t i = 0; i < elec.motors.size(); ++i) wMotor[i] = motorSign[i] * joints[motorJoint[i]].motorOmega();
     elec.solve(wMotor, t);
     for (auto& sv : elec.servos) sv.integrate(dt);   // servo output dynamics under the solved rail voltage
     // 3) Wheel normal loads (static + load transfer + diagonal imbalance from frame/tile flex)
@@ -446,7 +447,7 @@ void Robot::step(double dt, double t, double muScale) {
     // 5) Integrate joints with motor torques
     for (size_t i = 0; i < joints.size(); ++i) {
         auto& j = joints[i];
-        double tm = j.motor >= 0 ? elec.motors[j.motor].torque : 0.0;
+        double tm = j.motor >= 0 ? motorSign[j.motor] * elec.motors[j.motor].torque : 0.0;
         j.integrate(tm, dt);
     }
     for (auto& mech : mechs) if (mech.joint >= 0) { joints[mech.joint].loadTorque = 0; joints[mech.joint].loadDamping = 0; }

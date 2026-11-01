@@ -6,6 +6,8 @@
 #include <map>
 #include <sstream>
 #include <stdexcept>
+#include <sys/stat.h>
+#include <cstdlib>
 
 namespace gp {
 
@@ -13,16 +15,31 @@ std::string gameplanVersion() { return "0.1.0"; }
 
 static bool fileExists(const std::string& p) {
     std::ifstream f(p);
-    return bool(f);
+    if (f) return true;
+    struct stat st;
+    return stat(p.c_str(), &st) == 0;
+}
+static std::string absolute(const std::string& p) {
+    if (p.empty() || p[0] == '/' || (p.size() > 1 && p[1] == ':')) return p;
+#ifdef _WIN32
+    char b[4096];
+    return _fullpath(b, p.c_str(), sizeof b) ? std::string(b) : p;
+#else
+    char* r = realpath(p.c_str(), nullptr);
+    if (!r) return p;
+    std::string s(r);
+    free(r);
+    return s;
+#endif
 }
 
 std::string resolvePath(const std::string& p, const std::string& baseDir) {
     if (p.empty()) return p;
     if (p[0] == '/' || (p.size() > 1 && p[1] == ':')) return p;
-    if (fileExists(p)) return p;
-    if (!baseDir.empty() && fileExists(baseDir + "/" + p)) return baseDir + "/" + p;
+    if (fileExists(p)) return absolute(p);
+    if (!baseDir.empty() && fileExists(baseDir + "/" + p)) return absolute(baseDir + "/" + p);
     std::string root = GP_SOURCE_ROOT;
-    if (fileExists(root + "/" + p)) return root + "/" + p;
+    if (fileExists(root + "/" + p)) return absolute(root + "/" + p);
     return baseDir.empty() ? p : baseDir + "/" + p;
 }
 
@@ -265,6 +282,10 @@ bool MatchRunner::begin(std::string& err) {
         links_[i].reset(new RuntimeLink(*world_, int(i), rc, recorder_.get()));
         if (!links_[i]->start(err)) { err = re.label + ": " + err; return false; }
         if (!re.gamepadScript.empty()) { scripts_[i] = ScriptedGamepad::load(re.gamepadScript); hasScript_[i] = true; }
+        if (replay_.count(int(i))) {
+            ScriptedGamepad* sg = &replay_[int(i)];
+            links_[i]->replayInputs = [sg](double t, GamepadState& a, GamepadState& b) { sg->stateAt(t, a, b); };
+        }
         double ms = setup_.preMatchS;
         double autoEnd = ms + season_.autoS, teleopStart = autoEnd + season_.transitionS, end = ms + season_.matchLength();
         if (setup_.world.competitionMode) {
@@ -379,14 +400,18 @@ bool MatchRunner::advance(double dt, std::string& err) {
             GamepadState g1, g2;
             double mt = world_->rules().matchTime(world_->time());
             if (hasLive_[i]) { g1 = live_[i].first; g2 = live_[i].second; }
-            else if (hasScript_[i]) scripts_[i].stateAt(ph == Phase::PreMatch ? -1 : mt, g1, g2);
+            else if (hasScript_[i]) {
+                // recorded inputs are stamped in world time; authored scripts use match time
+                if (scripts_[i].fromRecordingTimeline) scripts_[i].stateAt(world_->time(), g1, g2);
+                else scripts_[i].stateAt(ph == Phase::PreMatch ? -1 : mt, g1, g2);
+            }
             bool allowed = world_->rules().driverControlAllowed(world_->time(), setup_.world.competitionMode) ||
                            (ph == Phase::Transition);  // DS still sends gamepads during transition; robot must stay still (G403)
             links_[i]->setGamepads(g1, g2, allowed);
         }
         // next lockstep target
         // absolute 50 ms grid: end-of-match detection is independent of the caller's advance() chunking
-        double tNext = std::min(until, (std::floor(world_->time() / 0.05 + 1e-9) + 1) * 0.05);
+        double tNext = std::min(until, (std::floor((world_->time() + setup_.world.dt * 0.5) / 0.05) + 1) * 0.05);
         for (auto& s : sched_) if (!s.done) { tNext = std::min(tNext, std::max(s.t, world_->time() + setup_.world.dt)); break; }
         if (world_->rules().phase() == Phase::PreMatch) tNext = std::min(tNext, std::max(setup_.preMatchS, world_->time() + setup_.world.dt));
         bool anyLink = false;
@@ -492,7 +517,6 @@ Json runCounterfactual(const std::string& dir, double branchT, const std::vector
         sj.set("record", rec);
         MatchSetup s = MatchSetup::fromJson(sj, GP_SOURCE_ROOT);
         MatchRunner m(s);
-        if (!m.begin(err)) return false;
         for (size_t i = 0; i < s.robots.size(); ++i) {
             std::string inp = dir + "/inputs_" + std::to_string(i) + ".csv";
             if (s.robots[i].controller == "runtime") {
@@ -500,22 +524,27 @@ Json runCounterfactual(const std::string& dir, double branchT, const std::vector
                 if (f1 || f2) m.setReplayInputs(int(i), ScriptedGamepad::fromRecording(inp));
             }
         }
+        if (!m.begin(err)) return false;
         if (branch) m.schedule(branchT, changes);
-        size_t hi = 0;
         double matchStart = s.preMatchS;
         while (m.advance(0.25, err)) {
             if (!err.empty()) return false;
-            // verify against recorded hashes while state should be identical (before the branch)
-            while (hi < hashes.size() && hashes[hi].first <= m.world().time() + 1e-9) {
-                double recT = hashes[hi].first;
-                bool beforeBranch = !branch || recT < matchStart + branchT - 1e-6;
-                if (beforeBranch && std::fabs(recT - m.world().time()) < 1e-6 && divergence.empty()) {
-                    if (m.world().stateHash() != hashes[hi].second) divergence = "state hash differs at t=" + std::to_string(recT);
-                }
-                ++hi;
-            }
         }
         result = m.finish();
+        // compare the re-execution's hash stream with the recorded one (both written at the same point of each step)
+        std::istringstream ss(readTextFile(rec + "/hashes.csv"));
+        std::string line;
+        std::getline(ss, line);
+        size_t k = 0;
+        while (std::getline(ss, line) && k < hashes.size()) {
+            size_t c = line.find(',');
+            double tt = std::stod(line.substr(0, c));
+            std::string h = line.substr(c + 1);
+            bool beforeBranch = !branch || tt < matchStart + branchT - 1e-6;
+            if (beforeBranch && divergence.empty() && (std::fabs(tt - hashes[k].first) > 1e-6 || h != hashes[k].second))
+                divergence = "state hash differs at t=" + std::to_string(hashes[k].first);
+            ++k;
+        }
         for (auto& wv : m.warnings) { (void)wv; }
         return true;
     };

@@ -303,8 +303,8 @@ void World::step() {
         if (robots_[r].sensors->visionActive) robots_[r].sensors->captureFrames(*this, int(r));
     }
     rules_->update(*this, t_, dt);
-    t_ += dt;
     ++steps_;
+    t_ = double(steps_) * dt;   // integer step count: no accumulated floating-point drift
 }
 
 // ---------------------------------------------------------------------------------------

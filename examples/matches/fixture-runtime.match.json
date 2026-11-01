@@ -1,0 +1,14 @@
+{
+  "season": "seasons/biobuzz-2027/season.json",
+  "seed": 3,
+  "mode": "competition",
+  "uncertainty": {"all": "realistic"},
+  "runtime": {"jar": "runtime/build/gameplan-runtime.jar", "timingProfile": "data/hardware/timing_profiles.json", "sandbox": true},
+  "robots": [
+    {"label": "red1", "alliance": "red", "robot": "examples/robots/generic-launcher.robot.json", "controller": "runtime",
+     "runtime": {"package": "out/packages/basic", "auto": "Encoder Auto", "teleop": "Mecanum TeleOp", "gamepadScript": "examples/matches/fixture-gamepad.json"}},
+    {"label": "red2", "alliance": "red", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "coordinated"}},
+    {"label": "blue1", "alliance": "blue", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "balanced"}},
+    {"label": "blue2", "alliance": "blue", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "cautious"}}
+  ]
+}
