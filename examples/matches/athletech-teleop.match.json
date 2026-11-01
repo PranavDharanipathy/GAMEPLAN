@@ -1,0 +1,14 @@
+{
+  "season": "seasons/biobuzz-2027/season.json",
+  "seed": 21,
+  "mode": "competition",
+  "uncertainty": {"all": "realistic"},
+  "runtime": {"jar": "runtime/build/gameplan-runtime.jar", "timingProfile": "data/hardware/timing_profiles.json"},
+  "robots": [
+    {"label": "red1", "alliance": "red", "robot": "examples/robots/athletech-v1.robot.json", "controller": "runtime",
+     "runtime": {"package": "out/packages/athletech", "teleop": "DriveIntakeShoot", "gamepadScript": "examples/matches/fixture-gamepad.json"}},
+    {"label": "red2", "alliance": "red", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "coordinated", "instruction": "Stay out of my way while I operate the intake"}},
+    {"label": "blue1", "alliance": "blue", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "aggressive"}},
+    {"label": "blue2", "alliance": "blue", "robot": "examples/robots/generic-launcher.robot.json", "controller": "ai", "ai": {"personality": "defensive"}}
+  ]
+}

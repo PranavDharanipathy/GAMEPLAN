@@ -88,7 +88,7 @@ public final class MavenResolver {
                 r.failed.add(c + ": " + e.getMessage());
                 continue;
             }
-            if (pom == null) continue;
+            if (pom == null) { r.failed.add(c + ": POM not found" + (lastError != null ? " (" + lastError + ")" : "")); lastError = null; continue; }
             String pk = text(pom.getDocumentElement(), "packaging");
             if (pk != null) c.packaging = pk;
             List<Coord> ds;
@@ -104,6 +104,7 @@ public final class MavenResolver {
             try {
                 Path jar = artifact(c);
                 if (jar != null) { r.jars.put(c.key(), jar); r.versions.put(c.key(), c.v); }
+                else { r.failed.add(c + ": artifact not found" + (lastError != null ? " (" + lastError + ")" : "")); lastError = null; }
             } catch (Exception e) {
                 r.failed.add(c + ": " + e.getMessage());
             }
@@ -112,6 +113,7 @@ public final class MavenResolver {
     }
 
     private final Map<String, Set<String>> depExclusions = new HashMap<>();
+    private String lastError;
 
     private List<Coord> dependencies(Document pom, Coord self, Set<String> excl) throws Exception {
         Map<String, String> props = properties(pom, self);
@@ -249,7 +251,13 @@ public final class MavenResolver {
         for (String repo : repos) {
             String url = (repo.endsWith("/") ? repo : repo + "/") + rel;
             try {
-                HttpResponse<byte[]> r = http.send(HttpRequest.newBuilder(URI.create(url)).build(), HttpResponse.BodyHandlers.ofByteArray());
+                HttpResponse<byte[]> r = null;
+                for (int attempt = 0; attempt < 5; attempt++) {
+                    r = http.send(HttpRequest.newBuilder(URI.create(url)).build(), HttpResponse.BodyHandlers.ofByteArray());
+                    if (r.statusCode() != 429 && r.statusCode() < 500) break;
+                    Thread.sleep(1000L << attempt);   // repository rate limiting / transient error: back off
+                }
+                if (r.statusCode() == 429 || r.statusCode() >= 500) lastError = "HTTP " + r.statusCode() + " from " + repo + " (rate limited / unavailable)";
                 if (r.statusCode() != 200) continue;
                 byte[] body = r.body();
                 HttpResponse<String> s = http.send(HttpRequest.newBuilder(URI.create(url + ".sha1")).build(), HttpResponse.BodyHandlers.ofString());

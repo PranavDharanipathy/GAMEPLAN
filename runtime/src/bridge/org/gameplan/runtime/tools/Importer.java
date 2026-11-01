@@ -47,6 +47,7 @@ public final class Importer {
     private final boolean offline;
     private final Map<String, Object> report = new LinkedHashMap<>();
     private final List<Object> notes = new ArrayList<>();
+    private String kotlinCp;
 
     Importer(Path project, Path out, Path runtimeBuild, boolean offline) {
         this.project = project.toAbsolutePath().normalize();
@@ -142,6 +143,16 @@ public final class Importer {
         for (Object o : Json.arr(sm.get("jars"))) sdkJars.add((String) o);
         String shadowJar = (String) sm.get("shadow");
 
+        // --- Android platform libraries that robot code can use without declaring them
+        List<Object> substitutes = new ArrayList<>();
+        boolean usesOrgJson = false;
+        for (Path p : srcs) if (new String(Files.readAllBytes(p), StandardCharsets.UTF_8).contains("import org.json.")) usesOrgJson = true;
+        if (usesOrgJson && !coords.containsKey("org.json:json")) {
+            coords.put("org.json:json", new MavenResolver.Coord("org.json", "json", "20231013"));
+            substitutes.add("org.json (built into Android) -> org.json:json:20231013 on the desktop; API-compatible for common use, edge-case behaviour may differ");
+        }
+        report.put("platformSubstitutes", substitutes);
+
         // --- dependency resolution
         MavenResolver mr = new MavenResolver(repos, Paths.get(System.getProperty("user.home"), ".gameplan", "maven"), offline);
         mr.providedGroups.add("org.firstinspires.ftc");
@@ -171,6 +182,17 @@ public final class Importer {
         compileCp.add(shadowJar);   // last: supplies only the android.* stand-ins that exist nowhere else
         if (!ktFiles.isEmpty()) {
             String kc = System.getenv("GAMEPLAN_KOTLINC_JAR");
+            if (kc == null && kotlin.get("pluginVersion") != null) {
+                // provision the Kotlin compiler matching the project's Kotlin Gradle plugin
+                String kv = (String) kotlin.get("pluginVersion");
+                MavenResolver kr = new MavenResolver(Arrays.asList("https://repo1.maven.org/maven2/"), Paths.get(System.getProperty("user.home"), ".gameplan", "maven"), offline);
+                MavenResolver.Resolved kres = kr.resolve(Arrays.asList(new MavenResolver.Coord("org.jetbrains.kotlin", "kotlin-compiler-embeddable", kv)), new HashMap<>());
+                if (kres.failed.isEmpty() && kres.jars.containsKey("org.jetbrains.kotlin:kotlin-compiler-embeddable")) {
+                    kc = kres.jars.values().stream().map(Path::toString).collect(Collectors.joining(File.pathSeparator));
+                    kotlin.put("compiler", "org.jetbrains.kotlin:kotlin-compiler-embeddable:" + kv + " (provisioned, " + kres.jars.size() + " jars)");
+                } else kotlin.put("provisioningFailed", kres.failed);
+            }
+            kotlinCp = kc;
             boolean kotlinOk = kc != null && compileKotlin(kc, ktFiles, javaFiles, compileCp, classes, excluded);
             kotlin.put("files", ktFiles.size());
             kotlin.put("compiled", kotlinOk);
@@ -192,7 +214,7 @@ public final class Importer {
             }
             deleteTree(classes);
             Files.createDirectories(classes);
-            if (!ktFiles.isEmpty() && Boolean.TRUE.equals(kotlin.get("compiled"))) compileKotlin(System.getenv("GAMEPLAN_KOTLINC_JAR"), ktFiles, new ArrayList<>(remaining), compileCp, classes, excluded);
+            if (!ktFiles.isEmpty() && Boolean.TRUE.equals(kotlin.get("compiled"))) compileKotlin(kotlinCp, ktFiles, new ArrayList<>(remaining), compileCp, classes, excluded);
         }
         List<Object> compiled = new ArrayList<>();
         for (Path p : remaining) compiled.add(rel(p));
