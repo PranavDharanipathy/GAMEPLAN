@@ -7,6 +7,7 @@ function frame(now) {
     state.sim.setPad(state.match === "live" ? readPad() : NO_PAD);
     afterStep(state.sim.step(dt));
   }
+  if (state.match === "replay") replayTick(dt);
   pollPad(dt);
   updateCamera(dt);
   resize();
@@ -47,6 +48,7 @@ requestAnimationFrame(frame);
 // test hooks for automated checks and screenshots (no effect on play)
 window.__gpPoll = (dt) => pollPad(dt);
 window.__gp = { THREE, scene, camera, renderer, state, settings, setSetting, ui, draw, placeDriver, look, robots, startMatch, pauseMatch, resumeMatch, toMenu,
+  replay, capture, watchLastMatch, openReplayFile, exitReplay, seekTo, replayTick,
   ready: () => boot.wasm && boot.field && state.match !== "none",
   renderFrame: (noLook) => { if (!noLook) updateCamera(1 / 60); resize(); composer.render(); },
   advance: (s) => { for (let t = 0; t < s && (state.running || state.match === "demo"); t += 0.05) { state.sim.setPad(state.running ? readPad() : NO_PAD); afterStep(state.sim.step(0.05)); } } };

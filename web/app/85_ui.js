@@ -1,6 +1,6 @@
 // ================= screens: main menu, match setup, settings, how to play, about, pause, report =================
 // A stack of overlay screens. Esc / gamepad B goes back; during a match the stack is empty and Esc pauses.
-const SCREENS = ["menu", "setup", "settings", "help", "about", "pause", "report"];
+const SCREENS = ["menu", "setup", "settings", "help", "about", "pause", "report", "replays"];
 const ui = {
   stack: [],
   top() { return this.stack[this.stack.length - 1] || null; },
@@ -23,6 +23,7 @@ const ui = {
     if (t === "help") renderHelp();
     if (t === "setup") { drawStandMap(); showParse(); }
     if (t === "about") renderUpdates();
+    if (t === "replays") renderReplaysScreen();
     renderUpdates();
     if (focus && t) {
       const el = $("scr-" + t), first = el.querySelector("[data-autofocus]") || el.querySelector(".mbtn, button:not([disabled]), [role='tab'][aria-selected='true'], input, select");
@@ -252,7 +253,8 @@ function pollPad(dt) {
   const gp_ = firstPad(); if (!gp_) return;
   const pressed = (i) => !!(gp_.buttons[i] && gp_.buttons[i].pressed), edge = (i) => pressed(i) && !padNav.prev[i];
   const t = ui.top();
-  if (!t) {
+  if (!t && state.match === "replay") replayPad(edge);
+  else if (!t) {
     if (state.match === "live" && edge(9)) pauseMatch();
     if (state.match === "live" && edge(8)) toggleOverhead();
   } else {

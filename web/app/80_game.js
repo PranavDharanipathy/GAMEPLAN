@@ -36,7 +36,7 @@ async function startMatch(cfg) {
   state.sim = sim;
   state.running = true; state.paused = false; state.overhead = false; state.elec = []; elecT = -1; lastMatchT = -99; hintSeen.clear(); prevHeld = 0;
   $("viewBtn").textContent = "Overhead"; $("pauseBtn").hidden = false;
-  placeDriver(); ui.closeAll(); showHud(true); perf.reset(); robotSound.start();
+  placeDriver(); ui.closeAll(); showHud(true); perf.reset(); robotSound.start(); captureStart();
   $("finalBanner").hidden = true;
   last = performance.now();
   canvas.focus();
@@ -59,12 +59,14 @@ function toMenu() {
 }
 function onPauseKey() {
   if (rebinding) return;
+  if (state.match === "replay" && !ui.top()) { exitReplay(); return; }
   if (state.match === "live" && !state.paused && !ui.top()) { pauseMatch(); return; }
   if (state.paused && ui.top() === "pause") { resumeMatch(); return; }
   if (ui.top()) ui.back();
 }
 function matchOver() {
   state.running = false; state.match = "over"; robotSound.stop(); keys.clear();
+  captureEnd(state.sim.result());
   ["keys", "touch", "hint", "robotHud", "pauseBtn"].forEach((id) => { $(id).hidden = true; });
   const h = state.sim.hud();
   $("finalRed").textContent = h.red; $("finalBlue").textContent = h.blue;
@@ -94,6 +96,7 @@ function afterStep(done) {
   const fr = state.sim.frame();
   draw(fr);
   if (state.match === "live") {
+    captureFrame(fr);
     const h = state.sim.hud();
     $("timer").textContent = h.timer; $("phase").textContent = h.phase.replace("_", " ") + (state.mode === "practice" ? " · practice" : "");
     $("sRed").textContent = h.red; $("sBlue").textContent = h.blue;

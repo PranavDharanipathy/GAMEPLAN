@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "gameplan/replay.hpp"
 #include "gameplan/analysis.hpp"
 #include "gameplan/cad.hpp"
 #include "gameplan/experiment.hpp"
@@ -23,6 +24,7 @@ static void usage() {
         "  verify <recordDir>                              re-execute a recorded match and check every state hash\n"
         "  counterfactual <recordDir> --at <matchTime> --set key=value [--set ...] [--out DIR]\n"
         "  report <recordDir> [--out report.html]          post-match engineering report (HTML)\n"
+        "  replay-export <recordDir> [--out FILE] [--hz 5|10|20]  viewer replay for the browser app (default recordDir/replay.gpreplay, 20 Hz)\n"
         "  experiment <experiment.json> [--out DIR]        batch: deterministic | stochastic | adversarial\n"
         "  estimate <experiment.json>                      resource estimate only (no simulation started)\n"
         "  stress <robot.json> [--out DIR]                 automated electrical stress tests\n"
@@ -92,6 +94,15 @@ int main(int argc, char** argv) {
             if (r.isNull()) { std::fprintf(stderr, "error: %s\n", err.c_str()); return 1; }
             std::puts(r.dump(2).c_str());
             return 0;
+        }
+        if (cmd == "replay-export") {
+            if (pos.empty()) { usage(); return 2; }
+            std::string out = get("out", pos[0] + "/replay.gpreplay"), err;
+            ReplayInfo info;
+            if (!exportReplay(pos[0], out, std::stod(get("hz", "20")), info, err)) { std::fprintf(stderr, "error: %s\n", err.c_str()); return 1; }
+            std::printf("replay: %s  (%zu frames, %.1f s, re-execution %s)\n", out.c_str(), info.frames, info.seconds, info.reproduction.c_str());
+            std::printf("open it in the GamePlan browser app: Replays > Open a replay file\n");
+            return info.reproduction == "EXACT" ? 0 : 3;
         }
         if (cmd == "report") {
             if (pos.empty()) { usage(); return 2; }

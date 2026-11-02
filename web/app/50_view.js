@@ -103,6 +103,7 @@ function headTarget() {   // where the driver looks: their robot, with a little 
 }
 let attractT = 0;
 function updateCamera(dt) {
+  if (state.match === "replay") { replayCamera(dt); return; }
   if (state.match === "demo" || state.match === "none") {   // menus: slow orbit, or still if motion is reduced
     attractT += settings.reducedMotion ? 0 : dt;
     const a = 2.35 + attractT * 0.045, R = 5.4, h = 2.3 + 0.25 * Math.sin(attractT * 0.11);

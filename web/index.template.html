@@ -182,6 +182,34 @@ canvas.chart { width: 100%; height: 160px; background: var(--panel-2); border-ra
 .about-grid dt { color: var(--muted); } .about-grid dd { margin: 0; font-family: var(--font-mono); }
 .upd-state.new { color: var(--pollen); }
 ul.notes { margin: 0; padding-left: 18px; line-height: 1.55; color: var(--muted); }
+/* replay bar: timeline with event marks, transport, speed, camera */
+.rbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; display: grid; gap: 6px;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(180deg, rgba(13,16,19,0), rgba(13,16,19,.9) 26%); }
+.rbar-top { display: flex; gap: 14px; align-items: baseline; min-width: 0; }
+.rtitle { font-family: var(--font-display); font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.revent { font-size: 13px; color: var(--fg); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rbar-main { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rbtns, .ropts { display: flex; gap: 6px; align-items: center; }
+.ib { min-width: 38px; padding: 7px 9px; font-family: var(--font-mono); font-size: 13px; }
+.ib.play { min-width: 46px; }
+.rtime { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rtrack { position: relative; flex: 1 1 240px; min-width: 160px; height: 30px; display: flex; align-items: center; }
+.rtrack input { width: 100%; margin: 0; accent-color: var(--pollen); position: relative; z-index: 1; background: transparent; padding: 0; border: 0; }
+.rmarks { position: absolute; left: 8px; right: 8px; top: 0; bottom: 0; pointer-events: none; }
+.rmarks .mk { position: absolute; top: 3px; width: 3px; height: 8px; margin-left: -1px; border-radius: 1px; background: var(--muted); }
+.rmarks .mk.score.red { background: var(--red); } .rmarks .mk.score.blue { background: var(--blue); }
+.rmarks .mk.tip { background: var(--pollen); height: 12px; top: 1px; width: 4px; }
+.rmarks .mk.foul { background: var(--warn); top: 19px; }
+.rmarks .mk.phase { background: var(--fg); opacity: .55; height: 24px; width: 1px; }
+.ropts select { padding: 6px 8px; font-size: 13px; }
+.rl-card { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+.rl-card.over { border-color: var(--pollen); }
+.rl-card code { font-family: var(--font-mono); font-size: 12px; color: var(--fg); background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+.filebtn { display: inline-flex; align-items: center; font: 600 14px var(--font-body); color: var(--bg); background: var(--pollen); border-radius: 4px; padding: 9px 16px; cursor: pointer; text-transform: none; letter-spacing: 0; }
+.filebtn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.filebtn:focus-within { outline: 2px solid var(--pollen); outline-offset: 2px; }
+@media (max-width: 640px) { .ropts { flex-wrap: wrap; } .rtrack { flex-basis: 100%; order: 3; } }
 /* boot */
 .boot { position: absolute; inset: 0; z-index: 40; background: var(--bg); display: grid; place-items: center; transition: opacity .5s; }
 .boot.gone { opacity: 0; pointer-events: none; }
@@ -231,6 +259,26 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   <div class="keys" id="keys" hidden></div>
   <div class="note2" id="note2" role="status" hidden></div>
   <div class="final" id="finalBanner" hidden><div class="box"><div class="word">Match complete</div><div class="nums"><span class="r" id="finalRed">0</span><span class="vs">vs</span><span class="b" id="finalBlue">0</span></div><div class="res" id="finalWord"></div></div></div>
+  <div class="rbar" id="replayBar" hidden>
+    <div class="rbar-top"><span class="rtitle" id="rpTitle">Replay</span><span class="revent" id="rpEvent" aria-live="polite"></span></div>
+    <div class="rbar-main">
+      <div class="rbtns">
+        <button type="button" class="ghost ib" id="rpPrevEv" aria-label="Previous event">&#9198;</button>
+        <button type="button" class="ghost ib" id="rpBack" aria-label="Back 5 seconds">&minus;5</button>
+        <button type="button" class="ib play" id="rpPlay" aria-label="Pause">&#10074;&#10074;</button>
+        <button type="button" class="ghost ib" id="rpFwd" aria-label="Forward 5 seconds">+5</button>
+        <button type="button" class="ghost ib" id="rpNextEv" aria-label="Next event">&#9197;</button>
+      </div>
+      <span class="rtime" id="rpTime">0:00 / 2:38</span>
+      <div class="rtrack"><div class="rmarks" id="rpMarks" aria-hidden="true"></div><input type="range" id="rpSeek" min="0" max="1000" step="1" value="0" aria-label="Match time"></div>
+      <div class="ropts">
+        <select id="rpSpeed" aria-label="Speed"><option value="0.25">0.25&times;</option><option value="0.5">0.5&times;</option><option value="1" selected>1&times;</option><option value="2">2&times;</option><option value="4">4&times;</option></select>
+        <select id="rpCam" aria-label="Camera"><option value="broadcast">Broadcast</option><option value="follow">Follow</option><option value="driver">Driver</option><option value="overhead">Overhead</option><option value="free">Free (drag)</option></select>
+        <select id="rpBot" aria-label="Robot"></select>
+        <button type="button" class="ghost" id="rpExit">Exit replay</button>
+      </div>
+    </div>
+  </div>
   <div class="touch" id="touch" hidden>
     <div class="stick" id="stickL" aria-label="Drive stick"><i></i></div>
     <div class="tbtns">
@@ -252,6 +300,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
         <button type="button" class="mbtn primary" data-go="setup" id="mPlay">Play match<small>Choose alliance, opponents and where you stand</small></button>
         <button type="button" class="mbtn" id="mQuick">Quick practice<small>Start driving right away &middot; practice rules</small></button>
         <button type="button" class="mbtn" data-go="settings">Settings<small>Graphics, camera, controls, audio, accessibility</small></button>
+        <button type="button" class="mbtn" data-go="replays">Replays<small>Watch your last match again, or a match recorded on a computer</small></button>
         <button type="button" class="mbtn" data-go="help">How to play<small>Controls and scoring</small></button>
         <button type="button" class="mbtn" data-go="about">About &amp; updates<small id="menuVer">GamePlan</small></button>
       </nav>
@@ -316,6 +365,20 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
     </div>
   </section>
 
+  <!-- replays -->
+  <section class="screen scrim" id="scr-replays" aria-label="Replays" hidden>
+    <div class="panel narrow">
+      <div class="panel-head"><h1>Replays</h1></div>
+      <div class="rl-card"><h3>Your last match</h3><p class="lede" id="rlLast">Play a match and its replay appears here.</p><div class="actions"><button type="button" id="rlWatch" disabled>Watch</button></div></div>
+      <div class="rl-card" id="rpDrop"><h3>A match recorded on a computer</h3>
+        <p class="lede">Matches played with GamePlan on a computer, including ones driven by your team's own code, can be watched here. Export one with <code>gp-sim replay-export out/&lt;match&gt;</code> and choose the <code>.gpreplay</code> file, or drop it here.</p>
+        <div class="actions"><label class="filebtn" for="rpFile">Choose a replay file<input type="file" id="rpFile" accept=".gpreplay,application/gzip,application/octet-stream"></label></div>
+        <p class="parsed" id="rpFileState" aria-live="polite"></p></div>
+      <p class="note">Space plays and pauses, the arrow keys skip 5 s (with Shift: to the previous or next event), [ and ] change speed, C changes camera, 1&ndash;4 pick a robot, Esc leaves. Gamepad: A, LB/RB, d-pad, Y, B.</p>
+      <div class="actions"><button type="button" data-back>Back</button></div>
+    </div>
+  </section>
+
   <!-- about & updates -->
   <section class="screen scrim" id="scr-about" aria-label="About and updates" hidden>
     <div class="panel narrow">
@@ -347,7 +410,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   <section class="screen scrim" id="scr-report" aria-label="Match report" hidden>
     <div class="panel">
       <div id="reportBody" style="display:grid;gap:18px"></div>
-      <div class="actions"><button type="button" class="ghost" id="rMenu">Main menu</button><button type="button" class="ghost" id="rSetup">Change setup</button><button type="button" id="rAgain">Play again</button></div>
+      <div class="actions"><button type="button" class="ghost" id="rMenu">Main menu</button><button type="button" class="ghost" id="rSetup">Change setup</button><button type="button" class="ghost" id="rWatch">Watch replay</button><button type="button" id="rAgain">Play again</button></div>
     </div>
   </section>
 

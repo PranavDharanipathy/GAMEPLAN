@@ -21,7 +21,7 @@ PR or branch), [BUILD_RULES.md](BUILD_RULES.md)
 | `data/hardware/` | Component library (motors, gearboxes, servos, batteries, hubs) and SDK call timing profile | JSON |
 | `examples/` | Robot descriptions, match setups, gamepad scripts, experiments | JSON |
 | `unreal/GamePlan/` | Unreal Engine project + `GamePlanSim` plugin embedding the core | C++ (UE) |
-| `apps/web/`, `web/` | Browser app: WASM entry points (`apps/web/gp_web.cpp`), page and styles (`web/index.template.html`), app modules `web/app/*.js` (renderer, materials, field, robots, view, input, audio, matches, menus, updates; concatenated in name order into one module by `tools/build_web_page.py`), browser tests `web/*.js` | C++ / JS |
+| `apps/web/`, `web/` | Browser app: WASM entry points (`apps/web/gp_web.cpp`), page and styles (`web/index.template.html`), app modules `web/app/*.js` (renderer, materials, field, robots, view, input, audio, matches, menus, replays, updates; concatenated in name order into one module by `tools/build_web_page.py`), browser tests `web/*.js` | C++ / JS |
 | `tests/integration_test.py` | End-to-end tests (Java runtime in the loop) | Python (stdlib) |
 
 ## Architectural principles (non-negotiable)
@@ -49,7 +49,10 @@ PR or branch), [BUILD_RULES.md](BUILD_RULES.md)
 ## Hard constraints learned the hard way
 
 - `World::time()` is `steps * dt` — never accumulate floating time (it caused a lockstep livelock).
-- Match end detection runs on an absolute 50 ms grid so results don't depend on `advance()` chunking.
+- Call `MatchRunner::advance()` in multiples of 50 ms. Lockstep targets follow an absolute 50 ms grid, but the
+  end-of-match check runs at chunk ends, so chunks off the grid (e.g. raw frame times) can stop the match a step
+  later and the recording then re-executes only APPROXIMATE (`verify` uses 0.25 s, `replay-export` 50 ms). The
+  Unreal match actor still advances by frame time; accumulate into 50 ms chunks before trusting its recordings.
 - Recorded gamepad inputs are stamped in **world time** and injected at the exact exchange time on replay.
 - Motors physically mirrored on the robot use `"mirrored": true` in the robot description; the SDK
   `setDirection(REVERSE)` in team code is a separate, software-side inversion. Don't conflate them.

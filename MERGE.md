@@ -108,7 +108,7 @@ From AGENTS.md — verify them explicitly, they break quietly:
 - **Season packages are immutable** once released; rule changes ship as a new package version.
 - **Sandbox** (Landlock, network namespace, process denial) is never weakened to make something run.
 - **Wire formats** stay consistent across producers and consumers: runtime protocol, WASM frame layout
-  (`apps/web/gp_web.cpp` ↔ `web/app/50_view.js` ↔ `web/playtest*.js`), recording files, season and
+  (`core/include/gameplan/view.hpp` ↔ `web/app/50_view.js` ↔ `web/app/88_replay.js` ↔ `web/playtest*.js`), replay files (`gameplan.replay/1`), recording files, season and
   robot schemas. If a feature changes one, every consumer is updated in the same integration.
 
 ## 6. Verification gates (all required before `main` moves)

@@ -65,6 +65,22 @@ fast = statistics.mean(loops(rec, 45, 150))
 slow = statistics.mean(loops(os.path.join(OUT, "m2"), 45, 150))
 check("expensive SDK calls lengthen the loop (%.1f ms vs %.1f ms)" % (slow, fast), slow > 2.0 * fast)
 
+# viewer replay of the Java-runtime match: re-executes it (team code runs again) and writes the frames
+rx = run([EXE, "replay-export", rec, "--out", os.path.join(OUT, "m1.gpreplay")], timeout=900)
+ok = rx.returncode == 0 and "EXACT" in rx.stdout
+if ok:
+    import struct
+    blob = gzip.open(os.path.join(OUT, "m1.gpreplay")).read()
+    hl = struct.unpack("<I", blob[10:14])[0]
+    hdr = json.loads(blob[14:14 + hl])
+    fl, nf = int(hdr["frameLength"]), int(hdr["frames"])
+    first = struct.unpack("<7f", blob[14 + hl:14 + hl + 28])   # header of the first frame: t phase red blue nR nE nC
+    expect_fl = 7 + 19 * int(first[4]) + 14 * int(first[5]) + 5 * int(first[6]) + 10
+    ok = (blob[:10] == b"GPREPLAY1\n" and hdr["schema"] == "gameplan.replay/1" and fl == expect_fl and (14 + hl) % 4 == 0
+          and len(blob) - 14 - hl == 4 * fl * nf and nf > 20 * 150 and hdr["reproduction"] == "EXACT"
+          and int(first[4]) == len(hdr["robots"]))
+check("replay export of the runtime match (EXACT, gameplan.replay/1, 20 Hz view frames)", ok, rx.stdout[-800:] + rx.stderr[-800:])
+
 rp = run([EXE, "report", rec])
 check("post-match report", rp.returncode == 0 and os.path.getsize(os.path.join(rec, "report.html")) > 10000)
 cf = run([EXE, "counterfactual", rec, "--at", "60", "--set", "red1.battery.soc=0.35", "--out", os.path.join(OUT, "cf")], timeout=1800)

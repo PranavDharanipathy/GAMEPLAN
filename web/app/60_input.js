@@ -22,6 +22,10 @@ let rebinding = null;   // set by the Controls settings while waiting for a key
 addEventListener("keydown", (e) => {
   if (rebinding) { e.preventDefault(); e.stopPropagation(); rebinding(e.code); return; }
   const inField = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && e.target.type !== "checkbox" && e.target.type !== "range";
+  if (state.match === "replay" && !ui.top()) {   // replay controls; Esc leaves the replay
+    if (e.code === "Escape") { e.preventDefault(); exitReplay(); } else replayKey(e);
+    return;
+  }
   const pauseKey = settings.binds.pause.includes(e.code);
   if (pauseKey && !inField) { e.preventDefault(); onPauseKey(); return; }
   if (state.running && !state.paused && !ui.top()) {

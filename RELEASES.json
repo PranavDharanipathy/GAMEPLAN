@@ -3,6 +3,17 @@
   "note": "Newest first. tools/release.py publishes the first entry as the live 'latest' record that running apps watch.",
   "releases": [
     {
+      "version": "0.9.0",
+      "date": "2026-11-02",
+      "required": false,
+      "notes": [
+        "Replays: watch your last match again from the results screen or Menu > Replays, with play, pause, 0.25x-4x speed and a timeline you can drag",
+        "The timeline marks every score, HIVE tip, foul and phase change; jump between them with the event buttons or Shift + arrow keys",
+        "Five cameras in replays: broadcast, follow a robot, the driver station, overhead and a free camera you drag",
+        "Open matches recorded with GamePlan on a computer, including ones driven by your team's code (export with gp-sim replay-export)"
+      ]
+    },
+    {
       "version": "0.8.0",
       "date": "2026-11-01",
       "required": false,

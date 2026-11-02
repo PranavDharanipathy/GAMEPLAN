@@ -57,6 +57,20 @@ const out = process.argv[2];
   await p.waitForFunction(() => window.__gp.ui.top() === 'report', null, { timeout: 15000, polling: 250 });
   console.log('report opens:', await visible(p, 'scr-report'), await p.$eval('#reportBody h1', (e) => e.textContent));
   await p.screenshot({ path: out + '/desktop_report.png', timeout: 180000 });
+  // replay of the match just played: seek, play at 2x, jump to an event, leave back to the report
+  await p.click('#rWatch');
+  const rp = await p.evaluate(() => {
+    const g = window.__gp, R = g.replay, s = document.getElementById('rpSeek');
+    const before = { m: g.state.match, frames: R.frames.length, marks: document.querySelectorAll('#rpMarks .mk').length };
+    s.value = 500; s.dispatchEvent(new Event('input'));
+    const cap = g.capture.frames, f = cap.reduce((b, fr) => (Math.abs(fr[0] - R.t) < Math.abs(b[0] - R.t) ? fr : b), cap[0]);
+    const pos = g.robots[0].g.position, err = Math.hypot(pos.x - f[7], pos.y - f[8]);
+    const t0 = R.t; R.speed = 2; R.playing = true; g.replayTick(1); const adv = R.t - t0;
+    return Object.assign(before, { seekPoseError_m: +err.toFixed(3), advance2x: +adv.toFixed(2) });
+  });
+  console.log('replay of this match (frames, marks, pose error after seek, 1 s at 2x):', JSON.stringify(rp));
+  await p.keyboard.press('Escape');
+  console.log('Esc leaves the replay to the report:', await p.evaluate(() => window.__gp.ui.top() === 'report' && window.__gp.state.match === 'over'));
   await p.click('#rAgain');
   await p.waitForFunction(() => window.__gp.state.running, null, { timeout: 60000, polling: 500 });
   console.log('Play again starts the next seed:', await p.evaluate(() => window.__gp.state.setup.seed));
@@ -89,6 +103,25 @@ const out = process.argv[2];
   await p.evaluate(() => window.__gp.renderFrame(true));
   await p.screenshot({ path: out + '/phone_play.png', timeout: 180000 });
   await ctx.close();
+  // ---------- a replay file exported by the desktop CLI (needs build/gp-sim from gate G1) ----------
+  const path = require('path'), fs = require('fs'), { execFileSync } = require('child_process');
+  const root = path.join(__dirname, '..'), sim = path.join(root, 'build', 'gp-sim'), rec = path.join(root, 'out', 'browser-replay');
+  if (fs.existsSync(sim)) {
+    execFileSync(sim, ['run', path.join(root, 'examples/matches/ai-vs-ai.match.json'), '--record', rec], { cwd: root });
+    execFileSync(sim, ['replay-export', rec], { cwd: root });
+    p = await b.newPage({ viewport: { width: 960, height: 540 } });
+    p.on('pageerror', (e) => errs.push('replay file: ' + e.message));
+    await p.addInitScript(() => { window.__gpPause = true; });
+    await p.goto('http://localhost:8765/index.html');
+    await p.waitForFunction(() => window.__gp && window.__gp.ready(), null, { timeout: 180000, polling: 500 });
+    await p.click('#scr-menu [data-go="replays"]');
+    await p.setInputFiles('#rpFile', path.join(rec, 'replay.gpreplay'));
+    await p.waitForFunction(() => window.__gp.state.match === 'replay' || /Could not/.test(document.getElementById('rpFileState').textContent), null, { timeout: 60000, polling: 250 });
+    console.log('desktop replay file opens:', JSON.stringify(await p.evaluate(() => ({ m: window.__gp.state.match, frames: window.__gp.replay.frames.length, robots: window.__gp.robots.length, title: document.getElementById('rpTitle').textContent, err: document.getElementById('rpFileState').textContent }))));
+    await p.evaluate(() => { const g = window.__gp; g.seekTo(g.replay.start + 75); });
+    console.log('clock at 1:15 of match time:', await p.$eval('#timer', (e) => e.textContent));
+    await p.close();
+  } else console.log('desktop replay file: not run (build/gp-sim missing; build gate G1 first)');
   // ---------- gamepad (a simulated controller: navigator.getGamepads stubbed) ----------
   p = await b.newPage({ viewport: { width: 960, height: 540 } });
   p.on('pageerror', (e) => errs.push('gamepad: ' + e.message));

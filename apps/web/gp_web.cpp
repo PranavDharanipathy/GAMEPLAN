@@ -14,6 +14,7 @@
 
 #include "gameplan/ai.hpp"
 #include "gameplan/world.hpp"
+#include "gameplan/view.hpp"
 
 #define GP_EXPORT(name) extern "C" __attribute__((export_name(#name)))
 
@@ -217,81 +218,14 @@ GP_EXPORT(gp_step) int gp_step(double dt) {
     return 0;
 }
 
-// Frame buffer layout (floats):
-// [0] t [1] phase [2] scoreRed [3] scoreBlue [4] nRobots [5] nElements [6] nCells
-// robots: x y heading alliance held tipped length width height intakeAngle flyAngle hoodAngle
-//         wheelAngle[4] (lf rf lb rb) pitch shooterStatus roll  (19 each)
-// elements: x y z kind(0 pollen,1 red nectar,2 blue nectar) radius visible qw qx qy qz squish nx ny nz (14 each)
-// cells: x y z up(1/0) alliance  (5 each), then hiveAngle[2] (rad about +x through the pivot),
-// then walls[4] x (flex m, flex speed m/s) for -x, +x, -y, +y
+// View frame of the current instant (layout: core/include/gameplan/view.hpp). The user robot's
+// shooter-status LED comes from the built-in TeleOp.
 GP_EXPORT(gp_frame) float* gp_frame() {
     gFrame.clear();
     if (!gWorld) return gFrame.data();
-    World& w = *gWorld;
-    gFrame.push_back(float(w.time()));
-    gFrame.push_back(float(int(w.rules().phase())));
-    gFrame.push_back(float(w.rules().score(Alliance::Red).total()));
-    gFrame.push_back(float(w.rules().score(Alliance::Blue).total()));
-    gFrame.push_back(float(w.robots().size()));
-    gFrame.push_back(float(w.elements().size()));
-    gFrame.push_back(4.0f);
-    for (auto& s : w.robots()) {
-        const Robot& r = *s.robot;
-        for (double v : {r.pos.x, r.pos.y, r.heading, double(int(r.alliance)), double(r.held.size()), r.tipped ? 1.0 : 0.0,
-                         r.cfg.length, r.cfg.width, r.cfg.height})
-            gFrame.push_back(float(v));
-        double ang[3] = {0, 0, 0};
-        for (auto& m : r.mechs) {
-            if (m.type == MechType::Intake && m.joint >= 0) ang[0] = r.joints[m.joint].theta;
-            if (m.type == MechType::Flywheel && m.joint >= 0) ang[1] = r.joints[m.joint].theta;
-            if (m.type == MechType::Hood && !m.servos.empty()) {
-                const ServoUnit& sv = r.elec.servos[m.servos[0]];
-                double span = sv.spec.rangeRad > 0 ? sv.spec.rangeRad : 1.0;
-                ang[2] = m.angleAt0 + clampd(sv.angle / span + 0.5, 0.0, 1.0) * (m.angleAt1 - m.angleAt0);
-            }
-        }
-        for (double v : ang) gFrame.push_back(float(v));
-        double wa[4] = {0, 0, 0, 0};
-        for (auto& wh : r.wheels) {
-            int k = (wh.pos.x > 0 ? 0 : 2) + (wh.pos.y > 0 ? 0 : 1);
-            if (wh.joint >= 0) wa[k] = r.joints[wh.joint].theta;
-        }
-        for (double v : wa) gFrame.push_back(float(v));
-        gFrame.push_back(float(r.pitch));
-        // shooter status LED: 0 off, 1 spinning up / not aimed, 2 ready (user robot's TeleOp only)
-        size_t idx = size_t(&s - &w.robots()[0]);
-        gFrame.push_back(float(idx == size_t(gUser) && gHuman ? gHuman->status_ : 0));
-        gFrame.push_back(float(r.roll));
-    }
-    for (auto& e : w.elements()) {
-        bool vis = e.state != ElemState::HumanArea && e.state != ElemState::OutOfField;
-        double kind = e.type == ElemType::Pollen ? 0 : (e.color == Alliance::Red ? 1 : 2);
-        for (double v : {e.p.x, e.p.y, e.p.z, kind, e.radius, vis ? 1.0 : 0.0, e.q[0], e.q[1], e.q[2], e.q[3], e.squish,
-                         e.squishN.x, e.squishN.y, e.squishN.z})
-            gFrame.push_back(float(v));
-    }
-    for (int h = 0; h < 2; ++h)
-        for (int c = 0; c < 2; ++c) {
-            const CellDef& cd = gSeason->hives[h].cells[c];
-            Vec3 p{0, 0, 0};
-            for (int id : cd.tags) p += w.tagPosition(id);
-            p = p / double(cd.tags.size());
-            bool up = w.hive(Alliance(h)).upCell == c && !w.hive(Alliance(h)).tipping;
-            for (double v : {p.x, p.y, p.z, up ? 1.0 : 0.0, double(h)}) gFrame.push_back(float(v));
-        }
-    // HIVE body rotation about its pivot (+x), 0 = audience CELL up (same convention as World::cellSlot)
-    for (int h = 0; h < 2; ++h) {
-        const HiveState& hs = w.hive(Alliance(h));
-        int aud = gSeason->hives[h].cells[0].side == "audience" ? 0 : 1;
-        double down = hs.upCell == aud ? 0.0 : 1.0;
-        if (hs.tipping) {
-            double f = clampd((w.time() - hs.tipStart) / gSeason->tipSettleS, 0.0, 1.0);
-            down = hs.upCell == aud ? f : 1.0 - f;
-        }
-        gFrame.push_back(float(down * hs.stateAngle));
-    }
-    // perimeter walls (-x, +x, -y, +y): panel flex (m) and its speed (m/s), for the wobble and the thud
-    for (int k = 0; k < 4; ++k) { gFrame.push_back(float(w.wallDisplacement(k))); gFrame.push_back(float(w.wallVelocity(k))); }
+    std::vector<int> status(gWorld->robots().size(), 0);
+    if (gHuman && gUser >= 0 && gUser < int(status.size())) status[size_t(gUser)] = gHuman->status_;
+    appendViewFrame(*gWorld, status, gFrame);
     return gFrame.data();
 }
 GP_EXPORT(gp_frame_len) int gp_frame_len() { return int(gFrame.size()); }
@@ -302,41 +236,9 @@ GP_EXPORT(gp_shooter_debug) const char* gp_shooter_debug() {
     gText = j.dump(); return gText.c_str();
 }
 
-// Static geometry of robot i for rendering: chassis, wheels, intake roller and mouth, internal ball
-// path, shooter. Body frame metres (x forward, y left, z up).
+// Static geometry of robot i for rendering (core/include/gameplan/view.hpp).
 GP_EXPORT(gp_robot_info) const char* gp_robot_info(int i) {
-    Json j = Json::object();
-    if (!gWorld || i < 0 || i >= int(gWorld->robots().size())) { gText = "{}"; return gText.c_str(); }
-    const World& w = *gWorld;
-    const Robot& r = *w.robots()[i].robot;
-    j.set("label", r.label); j.set("name", r.cfg.name); j.set("alliance", toString(r.alliance));
-    j.set("length", r.cfg.length); j.set("width", r.cfg.width); j.set("height", r.cfg.height);
-    Json wh = Json::array();
-    for (auto& x : r.wheels) {
-        Json o = Json::object();
-        o.set("x", x.pos.x); o.set("y", x.pos.y); o.set("r", x.radius);
-        o.set("roller", std::atan2(x.n.y, x.n.x));   // traction direction -> roller angle of a mecanum wheel
-        wh.push(o);
-    }
-    j.set("wheels", wh);
-    Json path = Json::array();
-    for (auto& p : w.ballPath(i)) { Json o = Json::array(); o.push(p.x); o.push(p.y); o.push(p.z); path.push(o); }
-    j.set("ballPath", path);
-    for (auto& m : r.mechs) {
-        Json o = Json::object();
-        if (m.type == MechType::Intake) {
-            o.set("rollerRadius", m.rollerRadius); o.set("width", m.width); o.set("reach", m.reach);
-            o.set("rollerZ", m.rollerZ > 0 ? m.rollerZ : w.season().pollenD + m.rollerRadius - 0.014);
-            o.set("mouthHeight", m.mouthHeight);
-            j.set("intake", o);
-        }
-        if (m.type == MechType::Flywheel) {
-            o.set("radius", m.flyRadius); o.set("x", m.launchFwd); o.set("z", m.launchHeight);
-            j.set("flywheel", o);
-        }
-        if (m.type == MechType::Hood) { o.set("a0", m.angleAt0); o.set("a1", m.angleAt1); j.set("hood", o); }
-    }
-    gText = j.dump();
+    gText = gWorld ? robotViewInfo(*gWorld, i).dump() : std::string("{}");
     return gText.c_str();
 }
 

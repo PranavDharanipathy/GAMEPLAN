@@ -40,6 +40,15 @@ statistics, calibrates an AI against its OPR components (≈2 min, local) and wr
 `"controller": "ai", "ai": {"imitate": "profiles/teams/<team>.team.json"}`. Read the profile's
 `calibration.unreachable` before trusting it.
 
+## Replays
+- Browser matches are captured while they are played (20 view frames/s, in memory) and watched from the
+  report (Watch replay) or Menu > Replays.
+- A recorded desktop match (`gp-sim run ... --record out/x`, including Java team code) becomes a replay with
+  `gp-sim replay-export out/x` (writes `out/x/replay.gpreplay`, 20 Hz; `--hz 5|10`). It re-executes the match
+  like `verify` and prints whether the re-execution was EXACT. Open the file in the browser app under Replays.
+- The file format is `gameplan.replay/1` (`core/include/gameplan/replay.hpp`); frames use the view-frame layout
+  of `core/include/gameplan/view.hpp`, the same one the browser draws live.
+
 ## Releasing (browser app)
 1. Bump `VERSION` and add the newest entry to `RELEASES.json` (version, date, notes, `required`).
 2. `python3 tools/release.py` builds the site and prints the `releases/latest` record.
